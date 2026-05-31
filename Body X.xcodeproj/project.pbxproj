@@ -10,9 +10,22 @@
 		D2CAC2002FCCE1E8007AB629 /* Body X.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Body X.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D2FDD69E2FCCE89200873C09 /* Exceptions for "Body X" folder in "Body X" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Body X.swiftpm",
+			);
+			target = D2CAC1FF2FCCE1E8007AB629 /* Body X */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D2CAC2022FCCE1E8007AB629 /* Body X */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D2FDD69E2FCCE89200873C09 /* Exceptions for "Body X" folder in "Body X" target */,
+			);
 			path = "Body X";
 			sourceTree = "<group>";
 		};
