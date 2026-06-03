@@ -100,34 +100,45 @@ struct ContentView: View {
     private func authenticate() {
         if isAuthenticating { return }
         isAuthenticating = true
+
         let context = LAContext()
         context.localizedCancelTitle = "Annuler"
         var error: NSError?
         let reason = "Déverrouiller Body X"
-        
+
+        // Helper to finish on main thread
+        func finish(success: Bool) {
+            DispatchQueue.main.async {
+                self.isUnlocked = success
+                self.isAuthenticating = false
+            }
+        }
+
+        // Fallback to deviceOwnerAuthentication (passcode) when biometrics fails or is unavailable
+        func fallbackToDeviceAuth() {
+            if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+                context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, _ in
+                    finish(success: success)
+                }
+            } else {
+                // If even device auth isn't available, do not block the user
+                finish(success: true)
+            }
+        }
+
         if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
             context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, _ in
-                DispatchQueue.main.async {
-                    isUnlocked = success
-                    isAuthenticating = false
+                if success {
+                    finish(success: true)
+                } else {
+                    // Automatically try device passcode without surfacing errors
+                    fallbackToDeviceAuth()
                 }
             }
-            return
-        }
-        
-        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-            DispatchQueue.main.async {
-                isAuthenticating = false
-                isUnlocked = true
-            }
-            return
-        }
-        
-        context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, _ in
-            DispatchQueue.main.async {
-                isUnlocked = success
-                isAuthenticating = false
-            }
+        } else {
+            // Biometrics not available, go straight to device passcode
+            fallbackToDeviceAuth()
         }
     }
 }
+
