@@ -86,7 +86,7 @@ struct Encounter: Identifiable, Codable {
     var gender: Gender?
     var context: EncounterContext?
     var city: String
-    var rating: Int
+    var rating: Double
     var note: String
     var pinOnMap: Bool
     var precisePlace: String = ""
@@ -138,4 +138,38 @@ struct Encounter: Identifiable, Codable {
         Encounter(firstName: "Tom K.", date: Calendar.current.date(byAdding: .month, value: -7, to: Date())!, gender: .male, context: .party, city: "Paris 9e", rating: 5, note: "Soirée inoubliable.", pinOnMap: true, type: .body, latitude: 48.878, longitude: 2.337),
         Encounter(firstName: "Camille A.", date: Calendar.current.date(byAdding: .month, value: -9, to: Date())!, gender: .nonBinary, context: .travel, city: "Ibiza", rating: 4, note: "Vacances parfaites.", pinOnMap: true, type: .kiss, latitude: 38.908, longitude: 1.433),
     ]
+}
+
+enum RatingScale {
+    static let minimum: Double = 0.5
+    static let maximum: Double = 5
+    static let step: Double = 0.5
+    static let values: [Double] = stride(from: minimum, through: maximum, by: step).map { $0 }
+    static let descendingValues: [Double] = Array(values.reversed())
+
+    static func normalized(_ rating: Double) -> Double {
+        let rounded = (rating / step).rounded() * step
+        return min(max(rounded, 0), maximum)
+    }
+
+    static func formatted(_ rating: Double) -> String {
+        let value = normalized(rating)
+        if value.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(Int(value))
+        }
+
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.minimumFractionDigits = 1
+        formatter.maximumFractionDigits = 1
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    static func formattedAverage(_ rating: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.minimumFractionDigits = 1
+        formatter.maximumFractionDigits = 1
+        return formatter.string(from: NSNumber(value: rating)) ?? String(format: "%.1f", rating)
+    }
 }

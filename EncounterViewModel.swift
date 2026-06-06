@@ -25,12 +25,18 @@ class EncounterViewModel: ObservableObject {
     @Published var selectedYear: String = "Tous"
     @Published var sortOption: SortOption = .none
     private let saveKey = "bodyx_encounters"
+    private let sampleSeedKey = "bodyx_sample_data_seeded"
     private let secureStorage = SecureStorage()
     private let rateLimiter = RateLimiter()
 
     init() {
         load()
-        if encounters.isEmpty { encounters = Encounter.samples }
+        if encounters.isEmpty && !UserDefaults.standard.bool(forKey: sampleSeedKey) {
+            encounters = Encounter.samples
+            UserDefaults.standard.set(true, forKey: sampleSeedKey)
+        } else if !encounters.isEmpty {
+            UserDefaults.standard.set(true, forKey: sampleSeedKey)
+        }
         if assignMissingPersonIDs() {
             save()
         }
@@ -149,16 +155,16 @@ class EncounterViewModel: ObservableObject {
     var averageRating: Double {
         let r = encounters.filter { $0.rating > 0 }
         guard !r.isEmpty else { return 0 }
-        return Double(r.map(\.rating).reduce(0, +)) / Double(r.count)
+        return r.map(\.rating).reduce(0, +) / Double(r.count)
     }
-    var averageRatingString: String { averageRating > 0 ? String(format: "%.1f", averageRating) : "—" }
+    var averageRatingString: String { averageRating > 0 ? RatingScale.formattedAverage(averageRating) : "—" }
     var topCity: String {
         let freq = Dictionary(grouping: encounters.map(\.city)) { $0 }.mapValues(\.count)
         return freq.max(by: { $0.value < $1.value })?.key ?? "—"
     }
-    var ratingDistribution: [Int: Int] {
-        var d: [Int: Int] = [1:0,2:0,3:0,4:0,5:0]
-        encounters.filter { $0.rating > 0 }.forEach { d[$0.rating, default: 0] += 1 }
+    var ratingDistribution: [Double: Int] {
+        var d = Dictionary(uniqueKeysWithValues: RatingScale.values.map { ($0, 0) })
+        encounters.filter { $0.rating > 0 }.forEach { d[RatingScale.normalized($0.rating), default: 0] += 1 }
         return d
     }
     var contextDistribution: [(EncounterContext, Int)] {
@@ -198,8 +204,8 @@ class EncounterViewModel: ObservableObject {
     func averageRatingString(for type: EncounterType) -> String {
         let rated = encounters.filter { ($0.type ?? .body) == type && $0.rating > 0 }
         guard !rated.isEmpty else { return "—" }
-        let avg = Double(rated.map(\.rating).reduce(0, +)) / Double(rated.count)
-        return String(format: "%.1f", avg)
+        let avg = rated.map(\.rating).reduce(0, +) / Double(rated.count)
+        return RatingScale.formattedAverage(avg)
     }
     
     func topCity(for type: EncounterType) -> String {
@@ -208,11 +214,11 @@ class EncounterViewModel: ObservableObject {
         return freq.max(by: { $0.value < $1.value })?.key ?? "—"
     }
     
-    func ratingDistribution(for type: EncounterType) -> [Int: Int] {
-        var d: [Int: Int] = [1:0,2:0,3:0,4:0,5:0]
+    func ratingDistribution(for type: EncounterType) -> [Double: Int] {
+        var d = Dictionary(uniqueKeysWithValues: RatingScale.values.map { ($0, 0) })
         encounters
             .filter { ($0.type ?? .body) == type && $0.rating > 0 }
-            .forEach { d[$0.rating, default: 0] += 1 }
+            .forEach { d[RatingScale.normalized($0.rating), default: 0] += 1 }
         return d
     }
     
@@ -296,7 +302,11 @@ class EncounterViewModel: ObservableObject {
     
     func clearAll() {
         guard rateLimiter.allows("encounter.clearAll", interval: 1.5) else { return }
-        encounters.removeAll()
+        searchQuery = ""
+        selectedYear = "Tous"
+        sortOption = .none
+        encounters = []
+        UserDefaults.standard.set(true, forKey: sampleSeedKey)
         save()
     }
     

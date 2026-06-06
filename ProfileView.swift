@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
-import PhotosUI
+import AVFoundation
+import LocalAuthentication
 import Photos
 
 struct ProfileView: View {
@@ -18,14 +19,22 @@ struct ProfileView: View {
     @State private var showDeleteAll = false
     @AppStorage("settings.theme") private var theme: String = "sombre"
     @AppStorage("settings.biometricLock") private var biometricLock: Bool = false
+    @AppStorage("settings.authenticationMethod") private var authenticationMethodRaw: String = AppAuthenticationMethod.biometry.rawValue
     @AppStorage("settings.autolockSeconds") private var autoLockSeconds: Int = 0
     @State private var showPhotoSourceDialog = false
-    @State private var showSystemPhotoPicker = false
-    @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showPhotoPicker = false
+    @State private var photoSourceType: UIImagePickerController.SourceType = .photoLibrary
     @State private var showEmojiEditor = false
     @State private var photoAccessAlertMessage = ""
     @State private var showPhotoAccessAlert = false
+    @State private var supportedBiometryType: LABiometryType = .none
+    @State private var availableAuthenticationMethods: [AppAuthenticationMethod] = []
+    @State private var showPasscodeSetup = false
+    @State private var newPasscode = ""
+    @State private var confirmPasscode = ""
+    @State private var passcodeSetupError = ""
+    @State private var enableLockAfterPasscodeSetup = false
+    @State private var hasAppPasscode = AppPasscodeStore.hasPasscode
 
     private let genders = ["Non précisé", "Femme", "Homme", "Non-binaire", "Autre"]
     private let emojiSuggestions: [String] = ["😀","😎","🥰","😘","🤩","😈","🥳","🤍","🔥","✨","🌹","🦋","🍸","🎵","☕️","🌙"]
@@ -68,6 +77,46 @@ struct ProfileView: View {
         let birthDate = Date(timeIntervalSince1970: birthDateTimestamp)
         let years = calendar.dateComponents([.year], from: birthDate, to: Date()).year ?? 0
         return max(0, years)
+    }
+
+    private var biometricLockBinding: Binding<Bool> {
+        Binding(
+            get: { biometricLock },
+            set: { enabled in
+                if enabled {
+                    refreshAuthenticationMethods()
+                    requestLockActivation()
+                } else {
+                    biometricLock = false
+                }
+            }
+        )
+    }
+
+    private var authenticationMethodBinding: Binding<AppAuthenticationMethod> {
+        Binding(
+            get: { authenticationMethod },
+            set: { method in
+                authenticationMethodRaw = method.rawValue
+                if biometricLock {
+                    requestLockActivation()
+                }
+            }
+        )
+    }
+
+    private var newPasscodeBinding: Binding<String> {
+        Binding(
+            get: { newPasscode },
+            set: { newPasscode = AppPasscodeStore.normalized($0) }
+        )
+    }
+
+    private var confirmPasscodeBinding: Binding<String> {
+        Binding(
+            get: { confirmPasscode },
+            set: { confirmPasscode = AppPasscodeStore.normalized($0) }
+        )
     }
     
     var body: some View {
@@ -139,8 +188,31 @@ struct ProfileView: View {
                         Text("Clair").tag("light")
                     }
                     
-                    Toggle("Ouvrir avec Face ID / Touch ID", isOn: $biometricLock)
+                    Toggle("Verrouiller l’app", isOn: biometricLockBinding)
                         .tint(.themeAccent)
+
+                    if !availableAuthenticationMethods.isEmpty {
+                        Picker("Méthode", selection: authenticationMethodBinding) {
+                            ForEach(availableAuthenticationMethods) { method in
+                                Label(
+                                    method.title(for: supportedBiometryType),
+                                    systemImage: method.icon(for: supportedBiometryType)
+                                )
+                                .tag(method)
+                            }
+                        }
+                        .disabled(!biometricLock)
+                    }
+
+                    Button {
+                        presentPasscodeSetup(enableLockAfterSetup: false)
+                    } label: {
+                        Label(
+                            hasAppPasscode ? "Modifier le code Body X" : "Créer un code Body X",
+                            systemImage: "number.square.fill"
+                        )
+                    }
+                    .foregroundColor(.themeAccent)
 
                     if biometricLock {
                         Picker("Verrouillage auto", selection: $autoLockSeconds) {
@@ -162,38 +234,26 @@ struct ProfileView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Profil")
+            .onAppear {
+                refreshAuthenticationMethods()
+            }
             .sheet(isPresented: $showPhotoPicker) {
-                ImagePicker(sourceType: .camera, allowsEditing: true) { image in
+                ImagePicker(sourceType: photoSourceType, allowsEditing: true) { image in
                     if let jpegData = image.jpegData(compressionQuality: 0.85) {
                         imageBase64 = jpegData.base64EncodedString()
                     }
                 }
             }
-            .photosPicker(
-                isPresented: $showSystemPhotoPicker,
-                selection: $selectedPhotoItem,
-                matching: .images
-            )
-            .onChange(of: selectedPhotoItem) { newItem in
-                guard let newItem else { return }
-                Task {
-                    if let data = try? await newItem.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data),
-                       let jpegData = image.jpegData(compressionQuality: 0.85) {
-                        await MainActor.run {
-                            imageBase64 = jpegData.base64EncodedString()
-                            selectedPhotoItem = nil
-                        }
-                    }
-                }
+            .sheet(isPresented: $showPasscodeSetup) {
+                passcodeSetupSheet
             }
             .confirmationDialog("Photo de profil", isPresented: $showPhotoSourceDialog, titleVisibility: .visible) {
                 Button("Choisir une photo") {
-                    requestPhotoLibraryAccessAndOpenPicker()
+                    requestPhotoLibraryAccessAndPresentPicker()
                 }
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
                     Button("Prendre une photo") {
-                        showPhotoPicker = true
+                        requestCameraAccessAndPresentPicker()
                     }
                 }
                 Button("Personnaliser avec un emoji") {
@@ -290,42 +350,277 @@ struct ProfileView: View {
             }
             .alert("Tout supprimer ?", isPresented: $showDeleteAll) {
                 Button("Supprimer", role: .destructive) {
-                    vm.clearAll()
+                    showDeleteAll = false
+                    Task { @MainActor in
+                        await Task.yield()
+                        vm.clearAll()
+                    }
                 }
                 Button("Annuler", role: .cancel) {}
             } message: {
                 Text("Cette action est irréversible.")
             }
-            .alert("Accès Photos requis", isPresented: $showPhotoAccessAlert) {
+            .alert("Accès requis", isPresented: $showPhotoAccessAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(photoAccessAlertMessage)
             }
         }
     }
-    
-    private func requestPhotoLibraryAccessAndOpenPicker() {
+
+    private var passcodeSetupSheet: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    SecureField("Code Body X", text: newPasscodeBinding)
+                        .keyboardType(.numberPad)
+                        .textContentType(.oneTimeCode)
+
+                    SecureField("Confirmer le code", text: confirmPasscodeBinding)
+                        .keyboardType(.numberPad)
+                        .textContentType(.oneTimeCode)
+                } footer: {
+                    Text("Choisis un code de \(AppPasscodeStore.minimumLength) à \(AppPasscodeStore.maximumLength) chiffres. Il servira à déverrouiller l’app sans Touch ID ni Face ID.")
+                }
+
+                if !passcodeSetupError.isEmpty {
+                    Section {
+                        Text(passcodeSetupError)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            .navigationTitle(hasAppPasscode ? "Modifier le code" : "Créer un code")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Annuler") {
+                        cancelPasscodeSetup()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("OK") {
+                        saveAppPasscode()
+                    }
+                    .disabled(newPasscode.count < AppPasscodeStore.minimumLength || confirmPasscode.isEmpty)
+                }
+            }
+        }
+    }
+
+    private func requestPhotoLibraryAccessAndPresentPicker() {
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         switch status {
         case .authorized, .limited:
-            showSystemPhotoPicker = true
+            presentPhotoPicker(sourceType: .photoLibrary)
         case .notDetermined:
             PHPhotoLibrary.requestAuthorization(for: .readWrite) { newStatus in
                 Task { @MainActor in
-                    if newStatus == .authorized || newStatus == .limited {
-                        showSystemPhotoPicker = true
+                    handlePhotoLibraryAuthorization(newStatus)
+                }
+            }
+        case .denied, .restricted:
+            showPhotoAccessAlert(message: "Autorise l’accès aux photos dans Réglages > Body X > Photos.")
+        @unknown default:
+            showPhotoAccessAlert(message: "Impossible d’accéder à la photothèque pour le moment.")
+        }
+    }
+
+    private func requestLockActivation() {
+        hasAppPasscode = AppPasscodeStore.hasPasscode
+
+        guard hasAppPasscode else {
+            biometricLock = false
+            presentPasscodeSetup(enableLockAfterSetup: true)
+            return
+        }
+
+        if authenticationMethod == .passcode {
+            biometricLock = true
+            return
+        }
+
+        requestBiometricLockActivation()
+    }
+
+    private func requestBiometricLockActivation() {
+        guard !availableAuthenticationMethods.isEmpty else {
+            biometricLock = false
+            showPhotoAccessAlert(message: "Configure Face ID ou Touch ID dans Réglages iOS avant d’activer ce mode.")
+            return
+        }
+
+        let context = LAContext()
+        context.localizedCancelTitle = "Annuler"
+        context.localizedFallbackTitle = "Utiliser le code Body X"
+
+        var error: NSError?
+
+        _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+        guard context.biometryType != .faceID || hasFaceIDUsageDescription else {
+            biometricLock = false
+            showPhotoAccessAlert(message: "Ajoute Privacy - Face ID Usage Description dans le target Body X pour autoriser Face ID.")
+            return
+        }
+
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            biometricLock = false
+            showPhotoAccessAlert(message: authenticationUnavailableMessage(from: error))
+            return
+        }
+
+        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: "Activer le verrouillage de Body X") { success, error in
+            Task { @MainActor in
+                biometricLock = success
+                if !success {
+                    showPhotoAccessAlert(message: authenticationUnavailableMessage(from: error as NSError?))
+                }
+            }
+        }
+    }
+
+    private func presentPasscodeSetup(enableLockAfterSetup: Bool) {
+        newPasscode = ""
+        confirmPasscode = ""
+        passcodeSetupError = ""
+        enableLockAfterPasscodeSetup = enableLockAfterSetup
+        showPasscodeSetup = true
+    }
+
+    private func saveAppPasscode() {
+        guard newPasscode.count >= AppPasscodeStore.minimumLength else {
+            passcodeSetupError = "Le code doit contenir au moins \(AppPasscodeStore.minimumLength) chiffres."
+            return
+        }
+
+        guard newPasscode == confirmPasscode else {
+            passcodeSetupError = "Les deux codes ne correspondent pas."
+            return
+        }
+
+        do {
+            try AppPasscodeStore.set(newPasscode)
+            hasAppPasscode = true
+            showPasscodeSetup = false
+            newPasscode = ""
+            confirmPasscode = ""
+            passcodeSetupError = ""
+
+            if enableLockAfterPasscodeSetup {
+                enableLockAfterPasscodeSetup = false
+                biometricLock = true
+                if authenticationMethod == .biometry {
+                    requestBiometricLockActivation()
+                }
+            }
+        } catch {
+            passcodeSetupError = "Impossible d’enregistrer le code pour le moment."
+        }
+    }
+
+    private func cancelPasscodeSetup() {
+        if enableLockAfterPasscodeSetup {
+            biometricLock = false
+        }
+        enableLockAfterPasscodeSetup = false
+        showPasscodeSetup = false
+        newPasscode = ""
+        confirmPasscode = ""
+        passcodeSetupError = ""
+    }
+
+    private func handlePhotoLibraryAuthorization(_ status: PHAuthorizationStatus) {
+        if status == .authorized || status == .limited {
+            presentPhotoPicker(sourceType: .photoLibrary)
+        } else {
+            showPhotoAccessAlert(message: "Autorise l’accès aux photos dans Réglages > Body X > Photos.")
+        }
+    }
+
+    private func requestCameraAccessAndPresentPicker() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showPhotoAccessAlert(message: "La caméra n’est pas disponible sur cet appareil.")
+            return
+        }
+
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            presentPhotoPicker(sourceType: .camera)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                Task { @MainActor in
+                    if granted {
+                        presentPhotoPicker(sourceType: .camera)
                     } else {
-                        photoAccessAlertMessage = "Autorise l’accès aux photos dans Réglages > Body X > Photos."
-                        showPhotoAccessAlert = true
+                        showPhotoAccessAlert(message: "Autorise l’accès à la caméra dans Réglages > Body X > Appareil photo.")
                     }
                 }
             }
         case .denied, .restricted:
-            photoAccessAlertMessage = "L’accès à la photothèque est refusé. Ouvre Réglages > Body X > Photos et autorise l’accès."
-            showPhotoAccessAlert = true
+            showPhotoAccessAlert(message: "Autorise l’accès à la caméra dans Réglages > Body X > Appareil photo.")
         @unknown default:
-            photoAccessAlertMessage = "Impossible d’accéder à la photothèque pour le moment."
-            showPhotoAccessAlert = true
+            showPhotoAccessAlert(message: "Impossible d’accéder à la caméra pour le moment.")
+        }
+    }
+
+    private func presentPhotoPicker(sourceType: UIImagePickerController.SourceType) {
+        showPhotoSourceDialog = false
+        photoSourceType = sourceType
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            showPhotoPicker = true
+        }
+    }
+
+    private func showPhotoAccessAlert(message: String) {
+        photoAccessAlertMessage = message
+        showPhotoAccessAlert = true
+    }
+
+    private var authenticationMethod: AppAuthenticationMethod {
+        AppAuthenticationMethod(rawValue: authenticationMethodRaw) ?? availableAuthenticationMethods.first ?? .passcode
+    }
+
+    private var hasFaceIDUsageDescription: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "NSFaceIDUsageDescription") is String
+    }
+
+    private func refreshAuthenticationMethods() {
+        let context = LAContext()
+        var biometricError: NSError?
+        let canUseBiometry = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &biometricError)
+        supportedBiometryType = context.biometryType
+
+        var methods: [AppAuthenticationMethod] = []
+        if canUseBiometry && (supportedBiometryType == .faceID || supportedBiometryType == .touchID) {
+            methods.append(.biometry)
+        }
+
+        methods.append(.passcode)
+
+        availableAuthenticationMethods = methods
+        hasAppPasscode = AppPasscodeStore.hasPasscode
+
+        if !methods.contains(authenticationMethod), let firstMethod = methods.first {
+            authenticationMethodRaw = firstMethod.rawValue
+        }
+    }
+
+    private func authenticationUnavailableMessage(from error: NSError?) -> String {
+        switch error?.code {
+        case LAError.biometryNotEnrolled.rawValue:
+            return "Configure Face ID, Touch ID ou un code dans Réglages avant d’activer ce verrouillage."
+        case LAError.biometryNotAvailable.rawValue:
+            return "Face ID / Touch ID n’est pas disponible. Le code de l’appareil sera utilisé s’il est configuré."
+        case LAError.biometryLockout.rawValue:
+            return "Face ID / Touch ID est temporairement bloqué. Utilise le code de l’appareil."
+        case LAError.passcodeNotSet.rawValue:
+            return "Aucun code n’est configuré sur cet appareil."
+        case LAError.userCancel.rawValue, LAError.systemCancel.rawValue, LAError.appCancel.rawValue:
+            return "Authentification annulée. Le verrouillage n’a pas été activé."
+        default:
+            return "Impossible d’activer Face ID, Touch ID ou le code pour le moment."
         }
     }
 }

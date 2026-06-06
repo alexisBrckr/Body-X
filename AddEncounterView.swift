@@ -20,7 +20,7 @@ struct AddEncounterView: View {
     @State private var encounterType: EncounterType = .body
     @State private var city: String = ""
     @State private var precisePlace: String = ""
-    @State private var rating: Int = 0
+    @State private var rating: Double = 0
     @State private var outcome: EncounterOutcome? = nil
     @State private var wouldMeetAgain: Bool = false
     @State private var note: String = ""
@@ -36,10 +36,9 @@ struct AddEncounterView: View {
     @State private var redFlagsInput: String = ""
     @State private var selectedLatitude: Double?
     @State private var selectedLongitude: Double?
-    @StateObject private var locationFetcher = CurrentLocationFetcher()
     @StateObject private var addressAutocomplete = AddressAutocompleteService()
-    @State private var locationErrorMessage = ""
-    @State private var showLocationError = false
+    @FocusState private var focusedField: FocusedField?
+    @State private var isApplyingAddressSuggestion = false
 
     @State private var showValidation = false
     private var isEditing: Bool { editingEncounter != nil }
@@ -48,6 +47,11 @@ struct AddEncounterView: View {
         case new = "Nouvelle personne"
         case existing = "Personne existante"
     }
+
+    private enum FocusedField {
+        case address
+    }
+
     @State private var personLinkMode: PersonLinkMode = .new
     @State private var selectedExistingPersonID: UUID? = nil
     
@@ -200,25 +204,21 @@ struct AddEncounterView: View {
 
                     TextField("Ville", text: cityBinding)
                     TextField("Adresse", text: addressBinding)
+                        .focused($focusedField, equals: .address)
                         .onChange(of: precisePlace) { newValue in
+                            guard !isApplyingAddressSuggestion else { return }
                             addressAutocomplete.updateQuery(newValue, cityHint: city)
                         }
                         .onChange(of: city) { newValue in
+                            guard !isApplyingAddressSuggestion else { return }
                             addressAutocomplete.updateQuery(precisePlace, cityHint: newValue)
                         }
                     
                     if !addressAutocomplete.suggestions.isEmpty && !precisePlace.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach(addressAutocomplete.suggestions.prefix(5)) { suggestion in
+                            ForEach(Array(addressAutocomplete.suggestions.prefix(5))) { suggestion in
                                 Button {
-                                    let formatted = suggestion.subtitle.isEmpty
-                                        ? suggestion.title
-                                        : "\(suggestion.title), \(suggestion.subtitle)"
-                                    precisePlace = InputSanitizer.cleanSingleLine(formatted, maxLength: 160)
-                                    if city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        city = InputSanitizer.cleanSingleLine(suggestion.subtitle, maxLength: 80)
-                                    }
-                                    addressAutocomplete.clear()
+                                    applyAddressSuggestion(suggestion)
                                 } label: {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(suggestion.title)
@@ -233,37 +233,14 @@ struct AddEncounterView: View {
                                         }
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 4)
+                                    .padding(.vertical, 8)
+                                    .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
                     }
                     
-                    Button {
-                        locationFetcher.requestCurrentAddress { locationInfo, coordinate, errorMessage in
-                            if let errorMessage {
-                                locationErrorMessage = errorMessage
-                                showLocationError = true
-                                return
-                            }
-                            if !locationInfo.city.isEmpty {
-                                city = InputSanitizer.cleanSingleLine(locationInfo.city, maxLength: 80)
-                            }
-                            if !locationInfo.address.isEmpty {
-                                precisePlace = InputSanitizer.cleanSingleLine(locationInfo.address, maxLength: 160)
-                            }
-                            if let coordinate {
-                                pinOnMap = true
-                                selectedLatitude = coordinate.latitude
-                                selectedLongitude = coordinate.longitude
-                            }
-                        }
-                    } label: {
-                        Label("Utiliser ma position actuelle", systemImage: "location.fill")
-                    }
-                    .foregroundColor(.themeAccent)
-
                     Picker("Contexte", selection: $context) {
                         Text("Non précisé").tag(Optional<EncounterContext>.none)
                         ForEach(EncounterContext.allCases, id: \.self) { c in
@@ -278,7 +255,7 @@ struct AddEncounterView: View {
                         StarPickerView(rating: $rating)
                         Spacer()
                         if rating > 0 {
-                            Text("\(rating) / 5")
+                            Text("\(RatingScale.formatted(rating)) / 5")
                                 .font(.system(size: 13))
                                 .foregroundColor(.secondary)
                         }
@@ -460,11 +437,6 @@ struct AddEncounterView: View {
                     }
                 }
             }
-            .alert("Localisation indisponible", isPresented: $showLocationError) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(locationErrorMessage)
-            }
         }
     }
 
@@ -617,106 +589,36 @@ struct AddEncounterView: View {
         customEmoji = source.customEmoji
         customEmojiBackgroundColor = Color(hex: source.customEmojiBackgroundHex)
     }
-    
-}
 
-final class CurrentLocationFetcher: NSObject, ObservableObject, CLLocationManagerDelegate {
-    struct LocationInfo {
-        let city: String
-        let address: String
-    }
+    private func applyAddressSuggestion(_ suggestion: AddressSuggestion) {
+        isApplyingAddressSuggestion = true
+        focusedField = nil
 
-    private let manager = CLLocationManager()
-    private var completion: ((LocationInfo, CLLocationCoordinate2D?, String?) -> Void)?
-    private var pendingLocationRequest = false
-    
-    override init() {
-        super.init()
-        manager.delegate = self
-    }
-    
-    func requestCurrentAddress(completion: @escaping (LocationInfo, CLLocationCoordinate2D?, String?) -> Void) {
-        self.completion = completion
-        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
-        guard CLLocationManager.locationServicesEnabled() else {
-            completion(LocationInfo(city: "", address: ""), nil, "Active la localisation dans Réglages > Confidentialité et sécurité > Service de localisation.")
-            self.completion = nil
-            return
-        }
-        let status = manager.authorizationStatus
-        switch status {
-        case .authorizedWhenInUse, .authorizedAlways:
-            manager.requestLocation()
-        case .notDetermined:
-            pendingLocationRequest = true
-            manager.requestWhenInUseAuthorization()
-        case .denied, .restricted:
-            completion(LocationInfo(city: "", address: ""), nil, "Autorise l’accès à la localisation pour remplir automatiquement ton adresse.")
-            self.completion = nil
-        @unknown default:
-            completion(LocationInfo(city: "", address: ""), nil, "Impossible d’accéder à la localisation pour le moment.")
-            self.completion = nil
-        }
-    }
-    
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.first else {
-            completion?(LocationInfo(city: "", address: ""), nil, "Position introuvable.")
-            completion = nil
-            return
-        }
-        let pendingCompletion = completion
-        completion = nil
-        let geocoder = CLGeocoder()
-        geocoder.reverseGeocodeLocation(location) { placemarks, _ in
-            let placemark = placemarks?.first
-            let city = placemark?.locality ?? placemark?.subAdministrativeArea ?? ""
-            let addressParts = [
-                placemark?.subThoroughfare,
-                placemark?.thoroughfare,
-                placemark?.postalCode,
-                placemark?.locality,
-                placemark?.country
-            ]
-            let fullAddress = addressParts
-                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-                .joined(separator: ", ")
-            let address = fullAddress.isEmpty ? (placemark?.name ?? "") : fullAddress
-            pendingCompletion?(LocationInfo(city: city, address: address), location.coordinate, nil)
-        }
-    }
-    
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        completion?(LocationInfo(city: "", address: ""), nil, "Impossible de récupérer ta position actuelle.")
-        completion = nil
-    }
+        let formatted = suggestion.subtitle.isEmpty
+            ? suggestion.title
+            : "\(suggestion.title), \(suggestion.subtitle)"
 
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        guard pendingLocationRequest else { return }
-        let status = manager.authorizationStatus
-        switch status {
-        case .authorizedWhenInUse, .authorizedAlways:
-            pendingLocationRequest = false
-            manager.requestLocation()
-        case .denied, .restricted:
-            pendingLocationRequest = false
-            completion?(LocationInfo(city: "", address: ""), nil, "Autorisation localisation refusée. Active-la dans Réglages pour utiliser cette fonction.")
-            completion = nil
-        case .notDetermined:
-            break
-        @unknown default:
-            pendingLocationRequest = false
-            completion?(LocationInfo(city: "", address: ""), nil, "Statut de localisation non pris en charge.")
-            completion = nil
+        precisePlace = InputSanitizer.cleanSingleLine(formatted, maxLength: 160)
+        if city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            city = InputSanitizer.cleanSingleLine(suggestion.subtitle, maxLength: 80)
+        }
+        addressAutocomplete.clear()
+
+        Task { @MainActor in
+            await Task.yield()
+            isApplyingAddressSuggestion = false
         }
     }
+    
 }
 
 struct AddressSuggestion: Identifiable {
-    let id = UUID()
     let title: String
     let subtitle: String
+
+    var id: String {
+        "\(title)\u{1F}\(subtitle)"
+    }
 }
 
 final class AddressAutocompleteService: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
@@ -743,10 +645,15 @@ final class AddressAutocompleteService: NSObject, ObservableObject, MKLocalSearc
     }
 
     func clear() {
+        completer.queryFragment = ""
         suggestions = []
     }
 
     func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        guard !completer.queryFragment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            suggestions = []
+            return
+        }
         suggestions = completer.results.map {
             AddressSuggestion(title: $0.title, subtitle: $0.subtitle)
         }

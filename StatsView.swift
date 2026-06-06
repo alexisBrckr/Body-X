@@ -60,14 +60,14 @@ struct StatsView: View {
                 Section(header: Text("Distribution des notes")) {
                     VStack(spacing: 10) {
                         let distribution = mode == .global ? vm.ratingDistribution : vm.ratingDistribution(for: selectedType)
-                        ForEach(Int.downTo1, id: \.self) { star in
+                        ForEach(RatingScale.descendingValues, id: \.self) { star in
                             let count = distribution[star] ?? 0
                             let max   = distribution.values.max() ?? 1
                             HStack(spacing: 10) {
-                                Text("\(star)★")
+                                Text("\(RatingScale.formatted(star))★")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(.secondary)
-                                    .frame(width: 30, alignment: .leading)
+                                    .frame(width: 42, alignment: .leading)
 
                                 GeometryReader { geo in
                                     ZStack(alignment: .leading) {
@@ -143,9 +143,4 @@ struct KPICard: View {
         )
         .cornerRadius(16)
     }
-}
-
-// MARK: - Helper
-private extension Int {
-    static var downTo1: [Int] { [5, 4, 3, 2, 1] }
 }

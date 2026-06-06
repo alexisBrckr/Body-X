@@ -16,6 +16,12 @@ struct EncounterMapView: View {
     )
     @State private var selectedPin: Encounter?
     @State private var detailEncounter: Encounter?
+    @State private var mapDisplayStyle: MapDisplayStyle = .standard
+
+    private enum MapDisplayStyle: String, CaseIterable {
+        case standard = "Plan"
+        case satellite = "Satellite"
+    }
 
     var annotations: [EncounterAnnotation] {
         vm.mappableEncounters.compactMap { e in
@@ -27,17 +33,15 @@ struct EncounterMapView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                Map(coordinateRegion: $region, annotationItems: annotations) { pin in
-                    MapAnnotation(coordinate: pin.coordinate) {
-                        pinView(for: pin.encounter)
-                            .onTapGesture {
-                                withAnimation(.spring()) {
-                                    selectedPin = pin.encounter
-                                }
-                            }
-                    }
+                mapContent
+                    .ignoresSafeArea(edges: .top)
+
+                VStack {
+                    mapStyleControl
+                    Spacer()
                 }
-                .ignoresSafeArea(edges: .top)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
 
                 // Bottom card
                 if let encounter = selectedPin {
@@ -67,6 +71,48 @@ struct EncounterMapView: View {
                 EncounterDetailView(encounter: encounter)
             }
         }
+    }
+
+    @ViewBuilder
+    private var mapContent: some View {
+        if #available(iOS 17.0, *) {
+            swiftUIMap
+                .mapStyle(mapDisplayStyle == .satellite ? .imagery : .standard)
+        } else if mapDisplayStyle == .satellite {
+            LegacyEncounterMapView(
+                region: $region,
+                annotations: annotations,
+                selectedPin: $selectedPin
+            )
+        } else {
+            swiftUIMap
+        }
+    }
+
+    private var swiftUIMap: some View {
+        Map(coordinateRegion: $region, annotationItems: annotations) { pin in
+            MapAnnotation(coordinate: pin.coordinate) {
+                pinView(for: pin.encounter)
+                    .onTapGesture {
+                        withAnimation(.spring()) {
+                            selectedPin = pin.encounter
+                        }
+                    }
+            }
+        }
+    }
+
+    private var mapStyleControl: some View {
+        Picker("Style de carte", selection: $mapDisplayStyle) {
+            ForEach(MapDisplayStyle.allCases, id: \.self) { style in
+                Text(style.rawValue).tag(style)
+            }
+        }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 240)
+        .padding(6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
     }
 
     // MARK: - Pin View
@@ -153,5 +199,93 @@ struct EncounterMapView: View {
         withAnimation(.easeInOut(duration: 0.35)) {
             region = MKCoordinateRegion(center: center, span: span)
         }
+    }
+}
+
+@MainActor
+private struct LegacyEncounterMapView: UIViewRepresentable {
+    @Binding var region: MKCoordinateRegion
+    let annotations: [EncounterAnnotation]
+    @Binding var selectedPin: Encounter?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeUIView(context: Context) -> MKMapView {
+        let mapView = MKMapView(frame: .zero)
+        mapView.delegate = context.coordinator
+        mapView.mapType = .satellite
+        mapView.setRegion(region, animated: false)
+        return mapView
+    }
+
+    func updateUIView(_ mapView: MKMapView, context: Context) {
+        context.coordinator.parent = self
+        mapView.mapType = .satellite
+
+        if mapView.region.isMeaningfullyDifferent(from: region) {
+            mapView.setRegion(region, animated: false)
+        }
+
+        let legacyAnnotations = annotations.map(LegacyEncounterAnnotation.init)
+        mapView.removeAnnotations(mapView.annotations)
+        mapView.addAnnotations(legacyAnnotations)
+    }
+
+    final class Coordinator: NSObject, MKMapViewDelegate {
+        var parent: LegacyEncounterMapView
+
+        init(_ parent: LegacyEncounterMapView) {
+            self.parent = parent
+        }
+
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            parent.region = mapView.region
+        }
+
+        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            guard let annotation = view.annotation as? LegacyEncounterAnnotation else { return }
+            withAnimation(.spring()) {
+                parent.selectedPin = annotation.encounter
+            }
+        }
+
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            guard let annotation = annotation as? LegacyEncounterAnnotation else { return nil }
+
+            let identifier = "EncounterAnnotation"
+            let annotationView = mapView.dequeueReusableAnnotationView(
+                withIdentifier: identifier
+            ) as? MKMarkerAnnotationView ?? MKMarkerAnnotationView(
+                annotation: annotation,
+                reuseIdentifier: identifier
+            )
+
+            annotationView.annotation = annotation
+            annotationView.canShowCallout = false
+            annotationView.glyphText = annotation.encounter.type?.emoji ?? "•"
+            return annotationView
+        }
+    }
+}
+
+private final class LegacyEncounterAnnotation: NSObject, MKAnnotation {
+    let encounter: Encounter
+    dynamic var coordinate: CLLocationCoordinate2D
+    var title: String? { encounter.firstName }
+
+    init(_ annotation: EncounterAnnotation) {
+        self.encounter = annotation.encounter
+        self.coordinate = annotation.coordinate
+    }
+}
+
+private extension MKCoordinateRegion {
+    func isMeaningfullyDifferent(from other: MKCoordinateRegion) -> Bool {
+        abs(center.latitude - other.center.latitude) > 0.0001 ||
+            abs(center.longitude - other.center.longitude) > 0.0001 ||
+            abs(span.latitudeDelta - other.span.latitudeDelta) > 0.0001 ||
+            abs(span.longitudeDelta - other.span.longitudeDelta) > 0.0001
     }
 }
