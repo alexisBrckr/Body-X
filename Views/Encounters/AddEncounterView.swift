@@ -1,7 +1,5 @@
 import SwiftUI
-import Combine
 import CoreLocation
-import MapKit
 import UIKit
 
 struct AddEncounterView: View {
@@ -538,12 +536,13 @@ struct AddEncounterView: View {
             : "\(precisePlace), \(city)"
         CLGeocoder().geocodeAddressString(query) { placemarks, _ in
             var updatedEncounter = encounter
-            if let loc = placemarks?.first?.location {
-                updatedEncounter.latitude = loc.coordinate.latitude
-                updatedEncounter.longitude = loc.coordinate.longitude
+            if let location = placemarks?.first?.location {
+                updatedEncounter.latitude = location.coordinate.latitude
+                updatedEncounter.longitude = location.coordinate.longitude
             }
+            let encounterToAdd = updatedEncounter
             Task { @MainActor in
-                vm.add(updatedEncounter)
+                vm.add(encounterToAdd)
             }
         }
     }
@@ -554,12 +553,13 @@ struct AddEncounterView: View {
             : "\(precisePlace), \(city)"
         CLGeocoder().geocodeAddressString(query) { placemarks, _ in
             var updatedEncounter = encounter
-            if let loc = placemarks?.first?.location {
-                updatedEncounter.latitude = loc.coordinate.latitude
-                updatedEncounter.longitude = loc.coordinate.longitude
+            if let location = placemarks?.first?.location {
+                updatedEncounter.latitude = location.coordinate.latitude
+                updatedEncounter.longitude = location.coordinate.longitude
             }
+            let encounterToUpdate = updatedEncounter
             Task { @MainActor in
-                vm.update(updatedEncounter)
+                vm.update(encounterToUpdate)
             }
         }
     }
@@ -610,101 +610,4 @@ struct AddEncounterView: View {
         }
     }
     
-}
-
-struct AddressSuggestion: Identifiable {
-    let title: String
-    let subtitle: String
-
-    var id: String {
-        "\(title)\u{1F}\(subtitle)"
-    }
-}
-
-final class AddressAutocompleteService: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
-    @Published private(set) var suggestions: [AddressSuggestion] = []
-
-    private let completer = MKLocalSearchCompleter()
-
-    override init() {
-        super.init()
-        completer.delegate = self
-        completer.resultTypes = .address
-    }
-
-    func updateQuery(_ address: String, cityHint: String) {
-        let cleanedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanedCity = cityHint.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard cleanedAddress.count >= 2 else {
-            suggestions = []
-            return
-        }
-
-        completer.queryFragment = cleanedCity.isEmpty ? cleanedAddress : "\(cleanedAddress), \(cleanedCity)"
-    }
-
-    func clear() {
-        completer.queryFragment = ""
-        suggestions = []
-    }
-
-    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
-        guard !completer.queryFragment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            suggestions = []
-            return
-        }
-        suggestions = completer.results.map {
-            AddressSuggestion(title: $0.title, subtitle: $0.subtitle)
-        }
-    }
-
-    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
-        suggestions = []
-    }
-}
-
-struct ImagePicker: UIViewControllerRepresentable {
-    let sourceType: UIImagePickerController.SourceType
-    let allowsEditing: Bool
-    let onImagePicked: (UIImage) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = sourceType
-        picker.allowsEditing = allowsEditing
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onImagePicked: onImagePicked, dismiss: dismiss)
-    }
-
-    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
-        let onImagePicked: (UIImage) -> Void
-        let dismiss: DismissAction
-
-        init(onImagePicked: @escaping (UIImage) -> Void, dismiss: DismissAction) {
-            self.onImagePicked = onImagePicked
-            self.dismiss = dismiss
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            dismiss()
-        }
-
-        func imagePickerController(
-            _ picker: UIImagePickerController,
-            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
-        ) {
-            if let image = (info[.editedImage] as? UIImage) ?? (info[.originalImage] as? UIImage) {
-                onImagePicked(image)
-            }
-            dismiss()
-        }
-    }
 }
