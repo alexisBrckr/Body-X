@@ -3,6 +3,7 @@ import SwiftUI
 struct PersonHistoryView: View {
     @EnvironmentObject var vm: EncounterViewModel
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("settings.privacyMode") private var privacyMode = false
     @State private var selectedEncounter: Encounter?
 
     let personID: UUID
@@ -24,7 +25,8 @@ struct PersonHistoryView: View {
     }
 
     private var displayName: String {
-        summary?.displayName ?? latestEncounter?.firstName ?? "Personne"
+        if privacyMode { return "Personne masquée" }
+        return summary?.displayName ?? latestEncounter?.firstName ?? "Personne"
     }
 
     private var averageRating: Double {
@@ -46,7 +48,8 @@ struct PersonHistoryView: View {
     }
 
     private var topCityText: String {
-        topValues(history.map(\.city), limit: 1).first?.0 ?? "—"
+        guard topValues(history.map(\.city), limit: 1).first != nil else { return "—" }
+        return privacyMode ? "Lieu masqué" : topValues(history.map(\.city), limit: 1).first?.0 ?? "—"
     }
 
     private var typeCounts: [(EncounterType, Int)] {
@@ -86,7 +89,8 @@ struct PersonHistoryView: View {
                             displayName: displayName,
                             encounterCount: history.count,
                             relationDatesText: relationDatesText,
-                            isLongTerm: summary?.isLongTerm == true
+                            isLongTerm: summary?.isLongTerm == true,
+                            privacyMode: privacyMode
                         )
                     }
                     .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
@@ -192,7 +196,13 @@ struct PersonHistoryView: View {
 
     @ViewBuilder
     private var preferencesSection: some View {
-        if !topTags.isEmpty || !topGreenFlags.isEmpty || !topRedFlags.isEmpty {
+        if privacyMode && (!topTags.isEmpty || !topGreenFlags.isEmpty || !topRedFlags.isEmpty) {
+            Section("Ce qui revient souvent") {
+                Label("Tags et flags masqués en mode discret", systemImage: "eye.slash.fill")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        } else if !topTags.isEmpty || !topGreenFlags.isEmpty || !topRedFlags.isEmpty {
             Section("Ce qui revient souvent") {
                 if !topTags.isEmpty {
                     PersonTagGroup(title: "Tags", items: topTags, tint: .themeAccent)
@@ -246,8 +256,13 @@ private struct PersonProfileHeaderView: View {
     let encounterCount: Int
     let relationDatesText: String
     let isLongTerm: Bool
+    let privacyMode: Bool
 
     private var subtitle: String {
+        if privacyMode {
+            return "Fiche personne masquée"
+        }
+
         var parts: [String] = []
         if let age = encounter.age {
             parts.append("\(age) ans")
@@ -430,7 +445,13 @@ private struct PersonTagGroup: View {
 }
 
 private struct PersonTimelineRow: View {
+    @AppStorage("settings.privacyMode") private var privacyMode = false
+
     let encounter: Encounter
+
+    private var cityText: String {
+        privacyMode ? "Lieu masqué" : encounter.city
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -462,7 +483,7 @@ private struct PersonTimelineRow: View {
 
                 HStack(spacing: 8) {
                     if !encounter.city.isEmpty {
-                        Label(encounter.city, systemImage: "mappin")
+                        Label(cityText, systemImage: "mappin")
                             .lineLimit(1)
                     }
 
@@ -478,7 +499,11 @@ private struct PersonTimelineRow: View {
                     StarRatingView(rating: encounter.rating, size: 12)
                 }
 
-                if !encounter.note.isEmpty {
+                if privacyMode && !encounter.note.isEmpty {
+                    Label("Note privée masquée", systemImage: "eye.slash.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                } else if !encounter.note.isEmpty {
                     Text(encounter.note)
                         .font(.system(size: 13))
                         .foregroundColor(.primary)

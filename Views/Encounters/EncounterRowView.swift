@@ -1,7 +1,17 @@
 import SwiftUI
 
 struct EncounterRowView: View {
+    @AppStorage("settings.privacyMode") private var privacyMode = false
+
     let encounter: Encounter
+
+    private var displayName: String {
+        privacyMode ? "Personne masquée" : encounter.firstName
+    }
+
+    private var cityText: String {
+        privacyMode ? "Lieu masqué" : encounter.city
+    }
 
     var body: some View {
         HStack(spacing: 14) {
@@ -16,7 +26,7 @@ struct EncounterRowView: View {
             )
 
             VStack(alignment: .leading, spacing: 5) {
-                Text(encounter.firstName)
+                Text(displayName)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(.primary)
                     .lineLimit(1)
@@ -29,7 +39,7 @@ struct EncounterRowView: View {
                         Text("·")
                             .font(.system(size: 13))
                             .foregroundColor(.secondary)
-                        Text(encounter.city)
+                        Text(cityText)
                             .font(.system(size: 13))
                             .foregroundColor(.secondary)
                             .lineLimit(1)

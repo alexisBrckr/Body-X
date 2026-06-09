@@ -10,6 +10,7 @@ struct EncounterAnnotation: Identifiable {
 
 struct EncounterMapView: View {
     @EnvironmentObject var vm: EncounterViewModel
+    @AppStorage("settings.privacyMode") private var privacyMode = false
     @State private var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 46.5, longitude: 2.3),
         span: MKCoordinateSpan(latitudeDelta: 8, longitudeDelta: 8)
@@ -17,17 +18,76 @@ struct EncounterMapView: View {
     @State private var selectedPin: Encounter?
     @State private var detailEncounter: Encounter?
     @State private var mapDisplayStyle: MapDisplayStyle = .standard
+    @State private var selectedTypeFilter: MapTypeFilter = .all
 
     private enum MapDisplayStyle: String, CaseIterable {
         case standard = "Plan"
         case satellite = "Satellite"
     }
 
+    private enum MapTypeFilter: String, CaseIterable, Identifiable {
+        case all
+        case body
+        case preli
+        case kiss
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .all: return "Toutes"
+            case .body: return "Bodycount"
+            case .preli: return "Prelicount"
+            case .kiss: return "Kisscount"
+            }
+        }
+
+        var shortTitle: String {
+            switch self {
+            case .all: return "Tous"
+            case .body: return "Body"
+            case .preli: return "Préli"
+            case .kiss: return "Kiss"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .all: return "mappin.and.ellipse"
+            case .body: return EncounterType.body.icon
+            case .preli: return EncounterType.preli.icon
+            case .kiss: return EncounterType.kiss.icon
+            }
+        }
+
+        var type: EncounterType? {
+            switch self {
+            case .all: return nil
+            case .body: return .body
+            case .preli: return .preli
+            case .kiss: return .kiss
+            }
+        }
+
+        func includes(_ encounter: Encounter) -> Bool {
+            guard let type else { return true }
+            return (encounter.type ?? .body) == type
+        }
+    }
+
     var annotations: [EncounterAnnotation] {
-        vm.mappableEncounters.compactMap { e in
+        vm.mappableEncounters.filter { selectedTypeFilter.includes($0) }.compactMap { e in
             guard let coord = e.coordinate else { return nil }
             return EncounterAnnotation(id: e.id, coordinate: coord, encounter: e)
         }
+    }
+
+    private func displayName(for encounter: Encounter) -> String {
+        privacyMode ? "Personne masquée" : encounter.firstName
+    }
+
+    private func cityText(for encounter: Encounter) -> String {
+        privacyMode ? "Lieu masqué" : encounter.city
     }
 
     var body: some View {
@@ -37,7 +97,7 @@ struct EncounterMapView: View {
                     .ignoresSafeArea(edges: .top)
 
                 VStack {
-                    mapStyleControl
+                    mapControls
                     Spacer()
                 }
                 .padding(.horizontal, 16)
@@ -54,11 +114,16 @@ struct EncounterMapView: View {
             .navigationBarTitleDisplayMode(.inline)
             .onAppear { fitRegionToAnnotations() }
             .onChange(of: vm.mappableEncounters.count) { _ in
+                clearSelectedPinIfHidden()
+                fitRegionToAnnotations()
+            }
+            .onChange(of: selectedTypeFilter) { _ in
+                selectedPin = nil
                 fitRegionToAnnotations()
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Text("\(vm.mappableEncounters.count) pins")
+                    Text("\(annotations.count) pins")
                         .font(.system(size: 13, weight: .semibold))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -71,6 +136,42 @@ struct EncounterMapView: View {
                 EncounterDetailView(encounter: encounter)
             }
         }
+    }
+
+    private var mapControls: some View {
+        HStack(spacing: 10) {
+            filterMenu
+            mapStyleControl
+        }
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            ForEach(MapTypeFilter.allCases) { filter in
+                Button {
+                    selectedTypeFilter = filter
+                } label: {
+                    if selectedTypeFilter == filter {
+                        Label(filter.title, systemImage: "checkmark")
+                    } else {
+                        Label(filter.title, systemImage: filter.systemImage)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                Text(selectedTypeFilter.shortTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
+        }
+        .foregroundColor(.primary)
     }
 
     @ViewBuilder
@@ -146,9 +247,9 @@ struct EncounterMapView: View {
             )
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(encounter.firstName)
+                Text(displayName(for: encounter))
                     .font(.system(size: 15, weight: .semibold))
-                Text("\(encounter.city) · \(encounter.formattedDate)")
+                Text("\(cityText(for: encounter)) · \(encounter.formattedDate)")
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
                 if encounter.rating > 0 {
@@ -198,6 +299,13 @@ struct EncounterMapView: View {
 
         withAnimation(.easeInOut(duration: 0.35)) {
             region = MKCoordinateRegion(center: center, span: span)
+        }
+    }
+
+    private func clearSelectedPinIfHidden() {
+        guard let selectedPin else { return }
+        if !selectedTypeFilter.includes(selectedPin) || !vm.mappableEncounters.contains(where: { $0.id == selectedPin.id }) {
+            self.selectedPin = nil
         }
     }
 }
@@ -254,26 +362,80 @@ private struct LegacyEncounterMapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             guard let annotation = annotation as? LegacyEncounterAnnotation else { return nil }
 
-            let identifier = "EncounterAnnotation"
+            let identifier = "EncounterAvatarAnnotation"
             let annotationView = mapView.dequeueReusableAnnotationView(
                 withIdentifier: identifier
-            ) as? MKMarkerAnnotationView ?? MKMarkerAnnotationView(
+            ) as? LegacyAvatarAnnotationView ?? LegacyAvatarAnnotationView(
                 annotation: annotation,
                 reuseIdentifier: identifier
             )
 
             annotationView.annotation = annotation
             annotationView.canShowCallout = false
-            annotationView.glyphText = annotation.encounter.type?.emoji ?? "•"
+            annotationView.configure(
+                with: annotation.encounter,
+                isSelected: parent.selectedPin?.id == annotation.encounter.id
+            )
             return annotationView
         }
+    }
+}
+
+@MainActor
+private final class LegacyAvatarAnnotationView: MKAnnotationView {
+    private let hostingController = UIHostingController(rootView: AnyView(EmptyView()))
+    private let contentSize = CGSize(width: 52, height: 52)
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        bounds = CGRect(origin: .zero, size: contentSize)
+        centerOffset = CGPoint(x: 0, y: -contentSize.height / 2)
+        canShowCallout = false
+
+        hostingController.view.backgroundColor = .clear
+        hostingController.view.frame = bounds
+        addSubview(hostingController.view)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        hostingController.view.frame = bounds
+    }
+
+    override func setSelected(_ selected: Bool, animated: Bool) {
+        super.setSelected(selected, animated: animated)
+        guard let annotation = annotation as? LegacyEncounterAnnotation else { return }
+        configure(with: annotation.encounter, isSelected: selected)
+    }
+
+    func configure(with encounter: Encounter, isSelected: Bool) {
+        hostingController.rootView = AnyView(
+            ZStack {
+                AvatarView(
+                    initials: encounter.initials,
+                    gender: encounter.gender,
+                    encounterType: encounter.type ?? .body,
+                    photoDataBase64: encounter.photoDataBase64,
+                    customEmoji: encounter.customEmoji,
+                    customEmojiBackgroundHex: encounter.customEmojiBackgroundHex,
+                    size: 36
+                )
+                .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                .scaleEffect(isSelected ? 1.2 : 1.0)
+            }
+            .frame(width: contentSize.width, height: contentSize.height)
+        )
     }
 }
 
 private final class LegacyEncounterAnnotation: NSObject, MKAnnotation {
     let encounter: Encounter
     dynamic var coordinate: CLLocationCoordinate2D
-    var title: String? { encounter.firstName }
+    var title: String? { "Rencontre" }
 
     init(_ annotation: EncounterAnnotation) {
         self.encounter = annotation.encounter

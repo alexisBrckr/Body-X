@@ -3,12 +3,19 @@ import Charts
 
 struct StatsView: View {
     @EnvironmentObject var vm: EncounterViewModel
+    @AppStorage("settings.privacyMode") private var privacyMode = false
     @State private var mode: StatsMode = .global
     @State private var selectedType: EncounterType = .body
     
     enum StatsMode: String, CaseIterable {
         case global = "Global"
         case custom = "Personnalisé"
+    }
+
+    private var topCityValue: String {
+        let value = mode == .global ? vm.topCity : vm.topCity(for: selectedType)
+        guard value != "—" else { return value }
+        return privacyMode ? "Lieu masqué" : value
     }
 
     var body: some View {
@@ -22,7 +29,7 @@ struct StatsView: View {
                         
                         HStack(spacing: 10) {
                             KPICard(icon: EncounterType.body.icon, color: .themeAccent, value: "\(vm.bodyCount)", label: "Body")
-                            KPICard(icon: EncounterType.preli.icon, color: .yellow, value: "\(vm.preliCount)", label: "Préli")
+                            KPICard(icon: EncounterType.preli.icon, color: .themePink, value: "\(vm.preliCount)", label: "Préli")
                             KPICard(icon: EncounterType.kiss.icon, color: .blue, value: "\(vm.kissCount)", label: "Kiss")
                         }
                         
@@ -50,7 +57,7 @@ struct StatsView: View {
                         KPICard(icon: mode == .global ? "person.2.fill" : selectedType.icon, color: .themeAccent, value: mode == .global ? "\(vm.totalCount)" : "\(vm.count(for: selectedType))", label: mode == .global ? "Total" : selectedType.rawValue)
                         KPICard(icon: "calendar", color: .blue, value: mode == .global ? "\(vm.thisYearCount)" : "\(vm.thisYearCount(for: selectedType))", label: "Cette année")
                         KPICard(icon: "star.fill", color: .yellow, value: mode == .global ? vm.averageRatingString : vm.averageRatingString(for: selectedType), label: "Note moy.")
-                        KPICard(icon: "mappin.circle.fill", color: .green, value: mode == .global ? vm.topCity : vm.topCity(for: selectedType), label: "Ville #1")
+                        KPICard(icon: "mappin.circle.fill", color: .green, value: topCityValue, label: "Ville #1")
                     }
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
@@ -110,5 +117,37 @@ struct StatsView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("Statistiques")
         }
+    }
+}
+
+// MARK: - KPI Card
+struct KPICard: View {
+    let icon: String
+    let color: Color
+    let value: String
+    let label: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundColor(color)
+            Text(value)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundColor(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.themeSurface)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.themeSilver.opacity(0.25), lineWidth: 1)
+        )
+        .cornerRadius(16)
     }
 }

@@ -12,6 +12,46 @@ private enum AppTheme: String {
     }
 }
 
+extension Int {
+    var starsString: String { String(repeating: "★", count: self) + String(repeating: "☆", count: 5 - self) }
+}
+
+extension Color {
+    init(hex: String) {
+        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: cleaned).scanHexInt64(&int)
+        let r, g, b: UInt64
+        switch cleaned.count {
+        case 6:
+            (r, g, b) = (int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (r, g, b) = (192, 132, 252)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: 1
+        )
+    }
+
+    func toHexString() -> String {
+        let uiColor = UIColor(self)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return String(
+            format: "#%02lX%02lX%02lX",
+            lroundf(Float(red * 255)),
+            lroundf(Float(green * 255)),
+            lroundf(Float(blue * 255))
+        )
+    }
+}
 extension Color {
     static let themeBlack = Color(
         UIColor { _ in
@@ -84,4 +124,3 @@ extension Color {
         }
     }
 }
-
