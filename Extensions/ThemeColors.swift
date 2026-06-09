@@ -12,6 +12,127 @@ private enum AppTheme: String {
     }
 }
 
+enum AppLanguage: String, CaseIterable, Identifiable {
+    case french = "fr"
+    case english = "en"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .french: return "Français"
+        case .english: return "English"
+        }
+    }
+
+    var localeIdentifier: String {
+        switch self {
+        case .french: return "fr_FR"
+        case .english: return "en_US"
+        }
+    }
+
+    static var current: AppLanguage {
+        let raw = UserDefaults.standard.string(forKey: "settings.language") ?? AppLanguage.french.rawValue
+        return AppLanguage(rawValue: raw) ?? .french
+    }
+}
+
+enum L10n {
+    static func text(_ french: String, _ english: String) -> String {
+        AppLanguage.current == .english ? english : french
+    }
+
+    static func date(_ date: Date, includesTime: Bool = false) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: AppLanguage.current.localeIdentifier)
+        switch AppLanguage.current {
+        case .french:
+            formatter.dateFormat = includesTime ? "d MMM yyyy HH:mm" : "d MMM yyyy"
+        case .english:
+            formatter.dateFormat = includesTime ? "MMM d, yyyy h:mm a" : "MMM d, yyyy"
+        }
+        return formatter.string(from: date)
+    }
+
+    static func encounterCount(_ count: Int) -> String {
+        switch AppLanguage.current {
+        case .french:
+            return "\(count) rencontre\(count > 1 ? "s" : "")"
+        case .english:
+            return "\(count) encounter\(count == 1 ? "" : "s")"
+        }
+    }
+
+    static func personCount(_ count: Int) -> String {
+        switch AppLanguage.current {
+        case .french:
+            return "\(count) personne\(count > 1 ? "s" : "")"
+        case .english:
+            return "\(count) person\(count == 1 ? "" : "s")"
+        }
+    }
+
+    static func age(_ age: Int) -> String {
+        switch AppLanguage.current {
+        case .french:
+            return "\(age) ans"
+        case .english:
+            return "\(age) years old"
+        }
+    }
+
+    static func yesNo(_ value: Bool) -> String {
+        value ? text("Oui", "Yes") : text("Non", "No")
+    }
+}
+
+extension Gender {
+    var localizedName: String {
+        switch self {
+        case .male: return L10n.text("Homme", "Man")
+        case .female: return L10n.text("Femme", "Woman")
+        case .nonBinary: return L10n.text("Non-binaire", "Non-binary")
+        case .other: return L10n.text("Autre", "Other")
+        }
+    }
+}
+
+extension EncounterContext {
+    var localizedName: String {
+        switch self {
+        case .app: return L10n.text("App de rencontre", "Dating app")
+        case .party: return L10n.text("Soirée", "Party")
+        case .friends: return L10n.text("Amis communs", "Mutual friends")
+        case .travel: return L10n.text("Voyage", "Travel")
+        case .work: return L10n.text("Travail", "Work")
+        case .bar: return L10n.text("Bar / Club", "Bar / Club")
+        case .other: return L10n.text("Autre", "Other")
+        }
+    }
+}
+
+extension EncounterOutcome {
+    var localizedName: String {
+        switch self {
+        case .excellent: return L10n.text("Excellent", "Excellent")
+        case .good: return L10n.text("Bien", "Good")
+        case .neutral: return L10n.text("Moyen", "Average")
+        case .bad: return L10n.text("Pas top", "Not great")
+        }
+    }
+}
+
+extension EncounterType {
+    var localizedName: String {
+        switch self {
+        case .body: return "Bodycount"
+        case .preli: return "Prelicount"
+        case .kiss: return "Kisscount"
+        }
+    }
+}
+
 extension Int {
     var starsString: String { String(repeating: "★", count: self) + String(repeating: "☆", count: 5 - self) }
 }

@@ -54,7 +54,7 @@ struct EncounterListView: View {
                     }
                 }
             }
-            .searchable(text: searchBinding, prompt: "Rechercher...")
+            .searchable(text: searchBinding, prompt: L10n.text("Rechercher...", "Search..."))
             .sheet(isPresented: $showAddSheet) {
                 AddEncounterView()
             }
@@ -82,7 +82,7 @@ struct EncounterListView: View {
     private var statsHeader: some View {
         HStack(spacing: 10) {
             StatPillView(value: "\(vm.bodyCount)", label: "Body")
-            StatPillView(value: "\(vm.preliCount)", label: "Préli")
+            StatPillView(value: "\(vm.preliCount)", label: "Preli")
             StatPillView(value: "\(vm.kissCount)", label: "Kiss")
         }
         .padding(.horizontal, 16)
@@ -211,13 +211,13 @@ struct EncounterListView: View {
             Image(systemName: "heart.text.square")
                 .font(.system(size: 56))
                 .foregroundColor(.themeAccent.opacity(0.45))
-            Text("Aucune entrée")
+            Text(L10n.text("Aucune entrée", "No entries"))
                 .font(.title3.bold())
-            Text("Appuie sur + pour ajouter ta première rencontre.")
+            Text(L10n.text("Appuie sur + pour ajouter ta première rencontre.", "Tap + to add your first encounter."))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Ajouter") { showAddSheet = true }
+            Button(L10n.text("Ajouter", "Add")) { showAddSheet = true }
                 .buttonStyle(.borderedProminent)
                 .tint(.themeAccent)
         }
@@ -231,7 +231,7 @@ struct PersonGroupRowView: View {
     let group: EncounterViewModel.AlphabeticalPersonGroup
 
     private var displayName: String {
-        privacyMode ? "Personne masquée" : group.displayName
+        privacyMode ? L10n.text("Personne masquée", "Hidden person") : group.displayName
     }
 
     var body: some View {
@@ -253,7 +253,7 @@ struct PersonGroupRowView: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(.primary)
                     .lineLimit(1)
-                Text("\(group.encounters.count) rencontre\(group.encounters.count > 1 ? "s" : "")")
+                Text(L10n.encounterCount(group.encounters.count))
                     .font(.system(size: 13))
                     .foregroundColor(.secondary)
             }
@@ -272,12 +272,12 @@ struct PersonEncounterPickerView: View {
     @State private var selectedCardIndex = 0
 
     private var displayName: String {
-        guard personGroup != nil else { return "Rencontres" }
-        return privacyMode ? "Personne masquée" : personGroup?.displayName ?? "Rencontres"
+        guard personGroup != nil else { return L10n.text("Rencontres", "Encounters") }
+        return privacyMode ? L10n.text("Personne masquée", "Hidden person") : personGroup?.displayName ?? L10n.text("Rencontres", "Encounters")
     }
 
     private func cityText(for encounter: Encounter) -> String {
-        privacyMode ? "Lieu masqué" : encounter.city
+        privacyMode ? L10n.text("Lieu masqué", "Hidden location") : encounter.city
     }
 
     var body: some View {
@@ -299,11 +299,11 @@ struct PersonEncounterPickerView: View {
                                 Text(displayName)
                                     .font(.system(size: 22, weight: .bold))
                                 HStack(spacing: 8) {
-                                    Text("\(personGroup.encounters.count) rencontre\(personGroup.encounters.count > 1 ? "s" : "")")
+                                Text(L10n.encounterCount(personGroup.encounters.count))
                                         .font(.system(size: 14))
                                         .foregroundColor(.secondary)
                                     if let age = latest.age, !privacyMode {
-                                        Text("· \(age) ans")
+                                        Text(L10n.text("· \(age) ans", "· \(age) years old"))
                                             .font(.system(size: 14))
                                             .foregroundColor(.secondary)
                                     }
@@ -314,7 +314,7 @@ struct PersonEncounterPickerView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
 
-                        Text("Fiches récapitulatives")
+                        Text(L10n.text("Fiches récapitulatives", "Summary cards"))
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 16)
@@ -323,13 +323,13 @@ struct PersonEncounterPickerView: View {
                             ForEach(Array(personGroup.encounters.enumerated()), id: \.element.id) { index, encounter in
                                 VStack(alignment: .leading, spacing: 12) {
                                     HStack {
-                                        Text("Rencontre \(index + 1)")
+                                        Text(L10n.text("Rencontre \(index + 1)", "Encounter \(index + 1)"))
                                             .font(.system(size: 18, weight: .bold))
                                         Spacer()
                                         if let type = encounter.type {
                                             HStack(spacing: 5) {
                                                 Text(type.emoji)
-                                                Text(type.rawValue)
+                                                Text(type.localizedName)
                                                     .lineLimit(1)
                                             }
                                             .font(.system(size: 12, weight: .semibold))
@@ -358,7 +358,7 @@ struct PersonEncounterPickerView: View {
                                     }
 
                                     if privacyMode && !encounter.note.isEmpty {
-                                        Label("Note privée masquée", systemImage: "eye.slash.fill")
+                                        Label(L10n.text("Note privée masquée", "Private note hidden"), systemImage: "eye.slash.fill")
                                             .font(.system(size: 13))
                                             .foregroundColor(.secondary)
                                             .padding(.top, 2)
@@ -369,8 +369,8 @@ struct PersonEncounterPickerView: View {
                                             .lineLimit(4)
                                             .padding(.top, 2)
                                     } else {
-                                        Text("Aucune note privée")
-                                            .font(.system(size: 13))
+                                            Text(L10n.text("Aucune note privée", "No private note"))
+                                                .font(.system(size: 13))
                                             .foregroundColor(.secondary)
                                             .italic()
                                     }
@@ -406,7 +406,7 @@ struct PersonEncounterPickerView: View {
                                 onSelect(personGroup.encounters[safeIndex])
                             } label: {
                                 HStack {
-                                    Text("Ouvrir la fiche")
+                                    Text(L10n.text("Ouvrir la fiche", "Open details"))
                                         .font(.system(size: 15, weight: .semibold))
                                     Spacer()
                                     Image(systemName: "arrow.right.circle.fill")
@@ -428,7 +428,7 @@ struct PersonEncounterPickerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Fermer") { dismiss() }
+                    Button(L10n.text("Fermer", "Close")) { dismiss() }
                         .foregroundColor(.themeAccent)
                 }
             }

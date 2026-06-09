@@ -6,11 +6,11 @@ struct EncounterRowView: View {
     let encounter: Encounter
 
     private var displayName: String {
-        privacyMode ? "Personne masquée" : encounter.firstName
+        privacyMode ? L10n.text("Personne masquée", "Hidden person") : encounter.firstName
     }
 
     private var cityText: String {
-        privacyMode ? "Lieu masqué" : encounter.city
+        privacyMode ? L10n.text("Lieu masqué", "Hidden location") : encounter.city
     }
 
     var body: some View {

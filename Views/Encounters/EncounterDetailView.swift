@@ -13,12 +13,12 @@ struct EncounterDetailView: View {
     @State private var showPersonHistory = false
 
     private var displayName: String {
-        privacyMode ? "Personne masquée" : encounter.firstName
+        privacyMode ? L10n.text("Personne masquée", "Hidden person") : encounter.firstName
     }
 
     private var cityText: String {
         guard !encounter.city.isEmpty else { return "" }
-        return privacyMode ? "Lieu masqué" : encounter.city
+        return privacyMode ? L10n.text("Lieu masqué", "Hidden location") : encounter.city
     }
 
     private var heroSubtitle: String {
@@ -27,7 +27,7 @@ struct EncounterDetailView: View {
     }
 
     private var precisePlaceText: String {
-        privacyMode ? "Lieu précis masqué" : encounter.precisePlace
+        privacyMode ? L10n.text("Lieu précis masqué", "Precise location hidden") : encounter.precisePlace
     }
 
     private var hasHiddenPrivateDetails: Bool {
@@ -58,7 +58,7 @@ struct EncounterDetailView: View {
                             HStack(spacing: 6) {
                                 TypeChip(type: encounter.type ?? .body)
                                 if let ctx = encounter.context {
-                                    DetailChip(text: ctx.rawValue, icon: ctx.icon)
+                                    DetailChip(text: ctx.localizedName, icon: ctx.icon)
                                 }
                             }
                             if encounter.rating > 0 {
@@ -67,7 +67,7 @@ struct EncounterDetailView: View {
                         }
                         Spacer()
                         if let gender = encounter.gender, !privacyMode {
-                            Text(gender.rawValue)
+                            Text(gender.localizedName)
                                 .font(.system(size: 11, weight: .semibold))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
@@ -83,16 +83,16 @@ struct EncounterDetailView: View {
                 Section {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         InfoTile(icon: "calendar", label: "Date", value: encounter.formattedDate)
-                        InfoTile(icon: "clock", label: "Il y a", value: encounter.daysAgo)
-                        InfoTile(icon: "mappin", label: "Ville", value: cityText.isEmpty ? "—" : cityText)
+                        InfoTile(icon: "clock", label: L10n.text("Il y a", "Ago"), value: encounter.daysAgo)
+                        InfoTile(icon: "mappin", label: L10n.text("Ville", "City"), value: cityText.isEmpty ? "—" : cityText)
                         if let ctx = encounter.context {
-                            InfoTile(icon: ctx.icon, label: "Contexte", value: ctx.rawValue)
+                            InfoTile(icon: ctx.icon, label: L10n.text("Contexte", "Context"), value: ctx.localizedName)
                         }
                         if let age = encounter.age, !privacyMode {
-                            InfoTile(icon: "person.text.rectangle", label: "Âge", value: "\(age) ans")
+                            InfoTile(icon: "person.text.rectangle", label: L10n.text("Âge", "Age"), value: L10n.text("\(age) ans", "\(age) years old"))
                         }
                         if !encounter.precisePlace.isEmpty {
-                            InfoTile(icon: "mappin.and.ellipse", label: "Lieu précis", value: precisePlaceText)
+                            InfoTile(icon: "mappin.and.ellipse", label: L10n.text("Lieu précis", "Precise place"), value: precisePlaceText)
                         }
                     }
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -102,21 +102,21 @@ struct EncounterDetailView: View {
                 
                 // MARK: Criteria
                 if encounter.outcome != nil || encounter.wouldMeetAgain {
-                    Section(header: Text("Critères")) {
+                    Section(header: Text(L10n.text("Critères", "Criteria"))) {
                         VStack(alignment: .leading, spacing: 10) {
                             if let outcome = encounter.outcome {
                                 DetailPill(
                                     icon: outcome.icon,
-                                    title: "Ressenti",
-                                    value: outcome.rawValue,
+                                    title: L10n.text("Ressenti", "Feeling"),
+                                    value: outcome.localizedName,
                                     tint: .themeAccent
                                 )
                             }
                             if encounter.wouldMeetAgain {
                                 DetailPill(
                                     icon: "heart.fill",
-                                    title: "Suite",
-                                    value: "Tu souhaites revoir cette personne",
+                                    title: L10n.text("Suite", "Next"),
+                                    value: L10n.text("Tu souhaites revoir cette personne", "You want to meet this person again"),
                                     tint: .green
                                 )
                             }
@@ -126,7 +126,7 @@ struct EncounterDetailView: View {
                 }
                 
                 if !privacyMode && !encounter.tags.isEmpty {
-                    Section(header: Text("Tags perso")) {
+                    Section(header: Text(L10n.text("Tags perso", "Personal tags"))) {
                         FlowWrapView(items: encounter.tags) { item in
                             TagChip(text: item, tint: .themeAccent.opacity(0.2))
                         }
@@ -159,8 +159,8 @@ struct EncounterDetailView: View {
                 }
 
                 if hasHiddenPrivateDetails {
-                    Section(header: Text("Données privées")) {
-                        Label("Tags et flags masqués en mode discret", systemImage: "eye.slash.fill")
+                    Section(header: Text(L10n.text("Données privées", "Private data"))) {
+                        Label(L10n.text("Tags et flags masqués en mode discret", "Tags and flags hidden in discreet mode"), systemImage: "eye.slash.fill")
                             .font(.footnote)
                             .foregroundColor(.secondary)
                     }
@@ -168,7 +168,7 @@ struct EncounterDetailView: View {
 
                 // MARK: Mini Map
                 if encounter.pinOnMap, let coord = encounter.coordinate {
-                    Section(header: Text("Localisation")) {
+                    Section(header: Text(L10n.text("Localisation", "Location"))) {
                         MiniMapView(coordinate: coord)
                             .frame(height: 140)
                             .cornerRadius(12)
@@ -178,9 +178,9 @@ struct EncounterDetailView: View {
 
                 // MARK: Note
                 if !encounter.note.isEmpty {
-                    Section(header: Text("Mémo privé")) {
+                    Section(header: Text(L10n.text("Mémo privé", "Private memo"))) {
                         if privacyMode {
-                            Label("Note masquée en mode discret", systemImage: "eye.slash.fill")
+                            Label(L10n.text("Note masquée en mode discret", "Note hidden in discreet mode"), systemImage: "eye.slash.fill")
                                 .font(.footnote)
                                 .foregroundColor(.secondary)
                                 .padding(.vertical, 4)
@@ -199,7 +199,7 @@ struct EncounterDetailView: View {
                         Button {
                             showPersonHistory = true
                         } label: {
-                            Label("Voir l’historique de cette personne", systemImage: "clock.arrow.circlepath")
+                            Label(L10n.text("Voir l’historique de cette personne", "View this person's history"), systemImage: "clock.arrow.circlepath")
                         }
                         .foregroundColor(.themeAccent)
                     }
@@ -207,14 +207,14 @@ struct EncounterDetailView: View {
                     Button {
                         showEditSheet = true
                     } label: {
-                        Label("Modifier", systemImage: "pencil")
+                        Label(L10n.text("Modifier", "Edit"), systemImage: "pencil")
                     }
                     .foregroundColor(.blue)
 
                     Button(role: .destructive) {
                         showDeleteAlert = true
                     } label: {
-                        Label("Supprimer cette entrée", systemImage: "trash")
+                        Label(L10n.text("Supprimer cette entrée", "Delete this entry"), systemImage: "trash")
                     }
                 }
             }
@@ -223,26 +223,26 @@ struct EncounterDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Fermer") { dismiss() }
+                    Button(L10n.text("Fermer", "Close")) { dismiss() }
                         .foregroundColor(.themeAccent)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showEditSheet = true
                     } label: {
-                        Text("Modifier")
+                        Text(L10n.text("Modifier", "Edit"))
                             .foregroundColor(.themeAccent)
                     }
                 }
             }
-            .alert("Supprimer ?", isPresented: $showDeleteAlert) {
-                Button("Supprimer", role: .destructive) {
+            .alert(L10n.text("Supprimer ?", "Delete?"), isPresented: $showDeleteAlert) {
+                Button(L10n.text("Supprimer", "Delete"), role: .destructive) {
                     vm.delete(encounter)
                     dismiss()
                 }
-                Button("Annuler", role: .cancel) {}
+                Button(L10n.text("Annuler", "Cancel"), role: .cancel) {}
             } message: {
-                Text("Cette action est irréversible.")
+                Text(L10n.text("Cette action est irréversible.", "This action cannot be undone."))
             }
             .sheet(isPresented: $showEditSheet) {
                 AddEncounterView(editingEncounter: encounter)
@@ -294,7 +294,7 @@ struct TypeChip: View {
     var body: some View {
         HStack(spacing: 5) {
             Text(type.emoji)
-            Text(type.rawValue)
+            Text(type.localizedName)
                 .lineLimit(1)
         }
         .font(.system(size: 11, weight: .semibold))

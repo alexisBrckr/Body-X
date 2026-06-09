@@ -16,10 +16,10 @@ enum AppAuthenticationMethod: String, CaseIterable, Identifiable {
             case .touchID:
                 return "Touch ID"
             default:
-                return "Biométrie"
+                return L10n.text("Biométrie", "Biometrics")
             }
         case .passcode:
-            return "Code Body X"
+            return L10n.text("Code Body X", "Body X code")
         }
     }
 
@@ -48,6 +48,7 @@ struct ContentView: View {
     @AppStorage("settings.authenticationMethod") private var authenticationMethodRaw: String = AppAuthenticationMethod.biometry.rawValue
     @AppStorage("settings.autolockSeconds") private var autoLockSeconds: Int = 0
     @AppStorage("settings.privacyShield") private var privacyShield: Bool = true
+    @AppStorage("settings.language") private var languageRaw: String = AppLanguage.french.rawValue
     @Environment(\.scenePhase) private var scenePhase
     @State private var isUnlocked: Bool = true
     @State private var isAuthenticating: Bool = false
@@ -67,13 +68,13 @@ struct ContentView: View {
             TabView(selection: $selectedTab) {
                 EncounterListView()
                     .tabItem {
-                        Label("Liste", systemImage: "list.bullet")
+                        Label(L10n.text("Liste", "List"), systemImage: "list.bullet")
                     }
                     .tag(Tab.list)
 
                 EncounterMapView()
                     .tabItem {
-                        Label("Carte", systemImage: "map")
+                        Label(L10n.text("Carte", "Map"), systemImage: "map")
                     }
                     .tag(Tab.map)
 
@@ -85,11 +86,12 @@ struct ContentView: View {
 
                 ProfileView()
                     .tabItem {
-                        Label("Profil", systemImage: "person.fill")
+                        Label(L10n.text("Profil", "Profile"), systemImage: "person.fill")
                     }
                     .tag(Tab.profile)
             }
             .tint(.themeAccent)
+            .id(languageRaw)
 
             if privacyShield && isPrivacyShieldVisible {
                 privacyShieldOverlay
@@ -143,7 +145,7 @@ struct ContentView: View {
                 isUnlocked = true
             }
         }
-        .alert("Déverrouillage indisponible", isPresented: $showAuthenticationError) {
+        .alert(L10n.text("Déverrouillage indisponible", "Unlock unavailable"), isPresented: $showAuthenticationError) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(authenticationErrorMessage)
@@ -162,7 +164,7 @@ struct ContentView: View {
                 .foregroundColor(.themeAccent)
             Text("Body X")
                 .font(.system(size: 28, weight: .black, design: .rounded))
-            Text("Aperçu masqué")
+            Text(L10n.text("Aperçu masqué", "Preview hidden"))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
@@ -175,7 +177,7 @@ struct ContentView: View {
             Image(systemName: "lock.shield.fill")
                 .font(.system(size: 42))
                 .foregroundColor(.themeAccent)
-            Text("Application verrouillée")
+            Text(L10n.text("Application verrouillée", "App locked"))
                 .font(.headline)
             if !authenticationErrorMessage.isEmpty {
                 Text(authenticationErrorMessage)
@@ -188,7 +190,7 @@ struct ContentView: View {
             if shouldShowPasscodeEntry {
                 passcodeUnlockControls
             } else {
-                Button("Déverrouiller avec \(authenticationMethod.title(for: supportedBiometryType))") {
+                Button(L10n.text("Déverrouiller avec", "Unlock with") + " \(authenticationMethod.title(for: supportedBiometryType))") {
                     authenticate()
                 }
                 .buttonStyle(.borderedProminent)
@@ -201,14 +203,14 @@ struct ContentView: View {
 
     private var passcodeUnlockControls: some View {
         VStack(spacing: 10) {
-            SecureField("Code Body X", text: passcodeInputBinding)
+            SecureField(L10n.text("Code Body X", "Body X code"), text: passcodeInputBinding)
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)
                 .focused($isPasscodeFieldFocused)
                 .frame(maxWidth: 240)
 
-            Button("Déverrouiller") {
+            Button(L10n.text("Déverrouiller", "Unlock")) {
                 unlockWithAppPasscode()
             }
             .buttonStyle(.borderedProminent)
@@ -252,10 +254,10 @@ struct ContentView: View {
         isAuthenticating = true
 
         let context = LAContext()
-        context.localizedCancelTitle = "Annuler"
-        context.localizedFallbackTitle = AppPasscodeStore.hasPasscode ? "Utiliser le code Body X" : ""
+        context.localizedCancelTitle = L10n.text("Annuler", "Cancel")
+        context.localizedFallbackTitle = AppPasscodeStore.hasPasscode ? L10n.text("Utiliser le code Body X", "Use Body X code") : ""
         var error: NSError?
-        let reason = "Déverrouiller Body X"
+        let reason = L10n.text("Déverrouiller Body X", "Unlock Body X")
 
         // Helper to finish on main thread
         func finish(success: Bool) {
@@ -282,13 +284,13 @@ struct ContentView: View {
 
         _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
         guard context.biometryType != .faceID || hasFaceIDUsageDescription else {
-            disableBiometricLock(message: "Ajoute Privacy - Face ID Usage Description dans le target Body X pour autoriser Face ID.")
+            disableBiometricLock(message: L10n.text("Ajoute Privacy - Face ID Usage Description dans le target Body X pour autoriser Face ID.", "Add Privacy - Face ID Usage Description to the Body X target to allow Face ID."))
             return
         }
 
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
             if AppPasscodeStore.hasPasscode {
-                showPasscodeFallback(message: "Entre le code Body X pour déverrouiller l’app.")
+                showPasscodeFallback(message: L10n.text("Entre le code Body X pour déverrouiller l’app.", "Enter your Body X code to unlock the app."))
             } else {
                 disableBiometricLock(message: authenticationUnavailableMessage(from: error))
             }
@@ -301,7 +303,7 @@ struct ContentView: View {
             } else {
                 let errorCode = (evaluationError as NSError?)?.code
                 if AppPasscodeStore.hasPasscode && errorCode == LAError.userFallback.rawValue {
-                    showPasscodeFallback(message: "Entre le code Body X pour déverrouiller l’app.")
+                    showPasscodeFallback(message: L10n.text("Entre le code Body X pour déverrouiller l’app.", "Enter your Body X code to unlock the app."))
                     return
                 }
 
@@ -315,7 +317,7 @@ struct ContentView: View {
 
     private func unlockWithAppPasscode() {
         guard AppPasscodeStore.hasPasscode else {
-            authenticationErrorMessage = "Crée d’abord un code Body X dans Profil > Paramètres."
+            authenticationErrorMessage = L10n.text("Crée d’abord un code Body X dans Profil > Paramètres.", "Create a Body X code first in Profile > Settings.")
             biometricLock = false
             isUnlocked = true
             passcodeInput = ""
@@ -323,7 +325,7 @@ struct ContentView: View {
         }
 
         guard AppPasscodeStore.validate(passcodeInput) else {
-            authenticationErrorMessage = "Code incorrect."
+            authenticationErrorMessage = L10n.text("Code incorrect.", "Incorrect code.")
             passcodeInput = ""
             focusPasscodeField()
             return
@@ -369,17 +371,17 @@ struct ContentView: View {
     private func authenticationUnavailableMessage(from error: NSError?) -> String {
         switch error?.code {
         case LAError.biometryNotEnrolled.rawValue:
-            return "Configure Face ID, Touch ID ou un code dans Réglages avant d’activer ce verrouillage."
+            return L10n.text("Configure Face ID, Touch ID ou un code dans Réglages avant d’activer ce verrouillage.", "Set up Face ID, Touch ID, or a passcode in Settings before enabling this lock.")
         case LAError.biometryNotAvailable.rawValue:
-            return "Face ID / Touch ID n’est pas disponible. Utilise le code si l’appareil en a un."
+            return L10n.text("Face ID / Touch ID n’est pas disponible. Utilise le code si l’appareil en a un.", "Face ID / Touch ID is unavailable. Use the code if the device has one.")
         case LAError.biometryLockout.rawValue:
-            return "Face ID / Touch ID est temporairement bloqué. Utilise le code de l’appareil."
+            return L10n.text("Face ID / Touch ID est temporairement bloqué. Utilise le code de l’appareil.", "Face ID / Touch ID is temporarily locked. Use the device passcode.")
         case LAError.passcodeNotSet.rawValue:
-            return "Aucun code n’est configuré sur cet appareil."
+            return L10n.text("Aucun code n’est configuré sur cet appareil.", "No passcode is configured on this device.")
         case LAError.userCancel.rawValue, LAError.systemCancel.rawValue, LAError.appCancel.rawValue:
-            return "Authentification annulée."
+            return L10n.text("Authentification annulée.", "Authentication canceled.")
         default:
-            return "Impossible d’utiliser Face ID, Touch ID ou le code pour le moment."
+            return L10n.text("Impossible d’utiliser Face ID, Touch ID ou le code pour le moment.", "Unable to use Face ID, Touch ID, or the code right now.")
         }
     }
 }

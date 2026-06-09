@@ -19,7 +19,7 @@ enum RatingScale {
         }
 
         let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.locale = Locale(identifier: AppLanguage.current.localeIdentifier)
         formatter.minimumFractionDigits = 1
         formatter.maximumFractionDigits = 1
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
@@ -27,7 +27,7 @@ enum RatingScale {
 
     static func formattedAverage(_ rating: Double) -> String {
         let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.locale = Locale(identifier: AppLanguage.current.localeIdentifier)
         formatter.minimumFractionDigits = 1
         formatter.maximumFractionDigits = 1
         return formatter.string(from: NSNumber(value: rating)) ?? String(format: "%.1f", rating)
@@ -89,7 +89,7 @@ struct StarPickerView: View {
                     }
                 }
                 .frame(width: size, height: size)
-                .accessibilityLabel("\(RatingScale.formatted(Double(i))) étoiles")
+                .accessibilityLabel(L10n.text("\(RatingScale.formatted(Double(i))) étoiles", "\(RatingScale.formatted(Double(i))) stars"))
                 .animation(.easeInOut(duration: 0.15), value: rating)
             }
         }

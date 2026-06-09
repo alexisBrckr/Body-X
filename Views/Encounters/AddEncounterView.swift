@@ -46,6 +46,13 @@ struct AddEncounterView: View {
     enum PersonLinkMode: String, CaseIterable {
         case new = "Nouvelle personne"
         case existing = "Personne existante"
+
+        var title: String {
+            switch self {
+            case .new: return L10n.text("Nouvelle personne", "New person")
+            case .existing: return L10n.text("Personne existante", "Existing person")
+            }
+        }
     }
 
     private enum FocusedField {
@@ -127,7 +134,7 @@ struct AddEncounterView: View {
                             }
                             .buttonStyle(.plain)
                             
-                            Text("Touchez l’avatar pour ajouter une photo")
+                            Text(L10n.text("Touchez l’avatar pour ajouter une photo", "Tap the avatar to add a photo"))
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                             if !firstName.isEmpty {
@@ -143,18 +150,18 @@ struct AddEncounterView: View {
                 }
 
                 // MARK: Identité
-                Section(header: Text("Identité")) {
+                Section(header: Text(L10n.text("Identité", "Identity"))) {
                     if !vm.personSummaries.isEmpty {
-                        Picker("Lier la rencontre", selection: $personLinkMode) {
+                        Picker(L10n.text("Lier la rencontre", "Link encounter"), selection: $personLinkMode) {
                             ForEach(PersonLinkMode.allCases, id: \.self) { mode in
-                                Text(mode.rawValue).tag(mode)
+                                Text(mode.title).tag(mode)
                             }
                         }
                         .pickerStyle(.segmented)
                         
                         if personLinkMode == .existing {
-                            Picker("Personne", selection: $selectedExistingPersonID) {
-                                Text("Choisir...").tag(Optional<UUID>.none)
+                            Picker(L10n.text("Personne", "Person"), selection: $selectedExistingPersonID) {
+                                Text(L10n.text("Choisir...", "Choose...")).tag(Optional<UUID>.none)
                                 ForEach(vm.personSummaries) { person in
                                     Text(person.displayName).tag(Optional(person.id))
                                 }
@@ -165,7 +172,7 @@ struct AddEncounterView: View {
                         }
                     }
                     
-                    TextField("Prénom ou surnom", text: firstNameBinding)
+                    TextField(L10n.text("Prénom ou surnom", "First name or nickname"), text: firstNameBinding)
                         .disabled(personLinkMode == .existing)
                         .overlay(
                             showValidation && firstName.isEmpty
@@ -175,36 +182,36 @@ struct AddEncounterView: View {
                     
                     Stepper(value: $age, in: 15...99) {
                         HStack {
-                            Text("Âge")
+                            Text(L10n.text("Âge", "Age"))
                             Spacer()
-                            Text("\(age) ans")
+                            Text(L10n.text("\(age) ans", "\(age) years old"))
                                 .foregroundColor(.secondary)
                         }
                     }
                     .disabled(personLinkMode == .existing)
 
-                    Picker("Genre", selection: $gender) {
+                    Picker(L10n.text("Genre", "Gender"), selection: $gender) {
                         ForEach(Gender.selectableCases, id: \.self) { g in
-                            Text(g.rawValue).tag(Optional(g))
+                            Text(g.localizedName).tag(Optional(g))
                         }
                     }
                     .disabled(personLinkMode == .existing)
                 }
 
                 // MARK: Contexte
-                Section(header: Text("Contexte")) {
-                    DatePicker("Date de la rencontre", selection: $date, in: ...Date(), displayedComponents: .date)
+                Section(header: Text(L10n.text("Contexte", "Context"))) {
+                    DatePicker(L10n.text("Date de la rencontre", "Encounter date"), selection: $date, in: ...Date(), displayedComponents: .date)
                         .datePickerStyle(.compact)
-                        .environment(\.locale, Locale(identifier: "fr_FR"))
+                        .environment(\.locale, Locale(identifier: AppLanguage.current.localeIdentifier))
                     
                     Picker("Type", selection: $encounterType) {
                         ForEach(EncounterType.allCases, id: \.self) { type in
-                            Label(type.rawValue, systemImage: type.icon).tag(type)
+                            Label(type.localizedName, systemImage: type.icon).tag(type)
                         }
                     }
 
-                    TextField("Ville", text: cityBinding)
-                    TextField("Adresse", text: addressBinding)
+                    TextField(L10n.text("Ville", "City"), text: cityBinding)
+                    TextField(L10n.text("Adresse", "Address"), text: addressBinding)
                         .focused($focusedField, equals: .address)
                         .onChange(of: precisePlace) { newValue in
                             guard !isApplyingAddressSuggestion else { return }
@@ -242,16 +249,16 @@ struct AddEncounterView: View {
                         }
                     }
                     
-                    Picker("Contexte", selection: $context) {
-                        Text("Non précisé").tag(Optional<EncounterContext>.none)
+                    Picker(L10n.text("Contexte", "Context"), selection: $context) {
+                        Text(L10n.text("Non précisé", "Not specified")).tag(Optional<EncounterContext>.none)
                         ForEach(EncounterContext.allCases, id: \.self) { c in
-                            Label(c.rawValue, systemImage: c.icon).tag(Optional(c))
+                            Label(c.localizedName, systemImage: c.icon).tag(Optional(c))
                         }
                     }
                 }
 
                 // MARK: Note
-                Section(header: Text("Note globale")) {
+                Section(header: Text(L10n.text("Note globale", "Overall rating"))) {
                     HStack {
                         StarPickerView(rating: $rating)
                         Spacer()
@@ -265,15 +272,15 @@ struct AddEncounterView: View {
                 }
 
                 // MARK: Critères
-                Section(header: Text("Critères")) {
-                    Picker("Ressenti", selection: $outcome) {
-                        Text("Non précisé").tag(Optional<EncounterOutcome>.none)
+                Section(header: Text(L10n.text("Critères", "Criteria"))) {
+                    Picker(L10n.text("Ressenti", "Feeling"), selection: $outcome) {
+                        Text(L10n.text("Non précisé", "Not specified")).tag(Optional<EncounterOutcome>.none)
                         ForEach(EncounterOutcome.allCases, id: \.self) { value in
-                            Label(value.rawValue, systemImage: value.icon).tag(Optional(value))
+                            Label(value.localizedName, systemImage: value.icon).tag(Optional(value))
                         }
                     }
 
-                    Toggle("Je souhaite revoir cette personne", isOn: $wouldMeetAgain)
+                    Toggle(L10n.text("Je souhaite revoir cette personne", "I want to meet this person again"), isOn: $wouldMeetAgain)
                         .tint(.themeAccent)
                 }
                 // MARK: Flags
@@ -283,12 +290,12 @@ struct AddEncounterView: View {
                 }
 
                 // MARK: Carte
-                Section(header: Text("Carte")) {
+                Section(header: Text(L10n.text("Carte", "Map"))) {
                     Toggle(isOn: $pinOnMap) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Épingler sur la carte")
+                            Text(L10n.text("Épingler sur la carte", "Pin on map"))
                                 .font(.system(size: 15))
-                            Text("Utilise la ville saisie pour géolocaliser")
+                            Text(L10n.text("Utilise la ville saisie pour géolocaliser", "Uses the entered city for geocoding"))
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                         }
@@ -297,21 +304,21 @@ struct AddEncounterView: View {
                 }
 
                 // MARK: Mémo
-                Section(header: Text("Mémo privé")) {
+                Section(header: Text(L10n.text("Mémo privé", "Private memo"))) {
                     TextEditor(text: noteBinding)
                         .frame(minHeight: 80)
                         .font(.system(size: 15))
                 }
             }
-            .navigationTitle(isEditing ? "Modifier" : "Nouvelle entrée")
+            .navigationTitle(isEditing ? L10n.text("Modifier", "Edit") : L10n.text("Nouvelle entrée", "New entry"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Annuler") { dismiss() }
+                    Button(L10n.text("Annuler", "Cancel")) { dismiss() }
                         .foregroundColor(.themeAccent)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(isEditing ? "Enregistrer" : "Ajouter") {
+                    Button(isEditing ? L10n.text("Enregistrer", "Save") : L10n.text("Ajouter", "Add")) {
                         let missingExistingPerson = personLinkMode == .existing && selectedExistingPersonID == nil
                         guard !firstName.isEmpty && !missingExistingPerson else {
                             showValidation = true
@@ -332,26 +339,26 @@ struct AddEncounterView: View {
                     }
                 }
             }
-            .confirmationDialog("Photo de la rencontre", isPresented: $showPhotoSourceDialog, titleVisibility: .visible) {
-                Button("Choisir une photo") {
+            .confirmationDialog(L10n.text("Photo de la rencontre", "Encounter photo"), isPresented: $showPhotoSourceDialog, titleVisibility: .visible) {
+                Button(L10n.text("Choisir une photo", "Choose a photo")) {
                     photoSourceType = .photoLibrary
                     showPhotoPicker = true
                 }
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button("Prendre une photo") {
+                    Button(L10n.text("Prendre une photo", "Take a photo")) {
                         photoSourceType = .camera
                         showPhotoPicker = true
                     }
                 }
-                Button("Personnaliser avec un emoji") {
+                Button(L10n.text("Personnaliser avec un emoji", "Customize with emoji")) {
                     showEmojiEditor = true
                 }
                 if !photoDataBase64.isEmpty {
-                    Button("Supprimer la photo", role: .destructive) {
+                    Button(L10n.text("Supprimer la photo", "Delete photo"), role: .destructive) {
                         photoDataBase64 = ""
                     }
                 }
-                Button("Annuler", role: .cancel) {}
+                Button(L10n.text("Annuler", "Cancel"), role: .cancel) {}
             }
             .sheet(isPresented: $showEmojiEditor) {
                 NavigationStack {
@@ -373,7 +380,7 @@ struct AddEncounterView: View {
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundColor(.secondary)
 
-                                TextField("Emoji personnalisé", text: Binding(
+                                TextField(L10n.text("Emoji personnalisé", "Custom emoji"), text: Binding(
                                     get: { customEmoji },
                                     set: { customEmoji = InputSanitizer.cleanEmoji($0) }
                                 ))
@@ -397,7 +404,7 @@ struct AddEncounterView: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 10) {
-                                Text("Couleur de fond")
+                                Text(L10n.text("Couleur de fond", "Background color"))
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundColor(.secondary)
                                 
@@ -422,14 +429,14 @@ struct AddEncounterView: View {
                                     }
                                 }
                                 
-                                ColorPicker("Personnalisée", selection: $customEmojiBackgroundColor, supportsOpacity: false)
+                                ColorPicker(L10n.text("Personnalisée", "Custom"), selection: $customEmojiBackgroundColor, supportsOpacity: false)
                                     .font(.system(size: 13))
                             }
                         }
                         .padding(.horizontal)
                         .padding(.bottom)
                     }
-                    .navigationTitle("Avatar Emoji")
+                    .navigationTitle(L10n.text("Avatar Emoji", "Emoji Avatar"))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarTrailing) {

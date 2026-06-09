@@ -115,16 +115,15 @@ struct Encounter: Identifiable, Codable {
 
     var daysAgo: String {
         let d = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 0
-        if d == 0 { return "Aujourd'hui" }
-        if d == 1 { return "Hier" }
-        if d < 30  { return "Il y a \(d) jours" }
-        if d < 365 { return "Il y a \(d/30) mois" }
-        return "Il y a \(d/365) an\(d/365 > 1 ? "s" : "")"
+        if d == 0 { return L10n.text("Aujourd'hui", "Today") }
+        if d == 1 { return L10n.text("Hier", "Yesterday") }
+        if d < 30  { return L10n.text("Il y a \(d) jours", "\(d) days ago") }
+        if d < 365 { return L10n.text("Il y a \(d/30) mois", "\(d/30) months ago") }
+        return L10n.text("Il y a \(d/365) an\(d/365 > 1 ? "s" : "")", "\(d/365) year\(d/365 > 1 ? "s" : "") ago")
     }
 
     var formattedDate: String {
-        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "d MMM yyyy"
-        return f.string(from: date)
+        L10n.date(date)
     }
 
     var yearString: String {

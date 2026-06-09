@@ -23,6 +23,7 @@ struct ProfileView: View {
     @AppStorage("settings.autolockSeconds") private var autoLockSeconds: Int = 0
     @AppStorage("settings.privacyMode") private var privacyMode: Bool = false
     @AppStorage("settings.privacyShield") private var privacyShield: Bool = true
+    @AppStorage("settings.language") private var languageRaw: String = AppLanguage.french.rawValue
     @State private var showPhotoSourceDialog = false
     @State private var showPhotoPicker = false
     @State private var photoSourceType: UIImagePickerController.SourceType = .photoLibrary
@@ -124,6 +125,24 @@ struct ProfileView: View {
             set: { confirmPasscode = AppPasscodeStore.normalized($0) }
         )
     }
+
+    private var languageBinding: Binding<AppLanguage> {
+        Binding(
+            get: { AppLanguage(rawValue: languageRaw) ?? .french },
+            set: { languageRaw = $0.rawValue }
+        )
+    }
+
+    private func profileGenderLabel(_ value: String) -> String {
+        switch value {
+        case "Non précisé": return L10n.text("Non précisé", "Not specified")
+        case "Femme": return L10n.text("Femme", "Woman")
+        case "Homme": return L10n.text("Homme", "Man")
+        case "Non-binaire": return L10n.text("Non-binaire", "Non-binary")
+        case "Autre": return L10n.text("Autre", "Other")
+        default: return value
+        }
+    }
     
     var body: some View {
         NavigationStack {
@@ -146,9 +165,12 @@ struct ProfileView: View {
                         .buttonStyle(.plain)
 
                         VStack(spacing: 4) {
-                            Text(firstName.isEmpty ? "Mon profil" : firstName)
+                            Text(firstName.isEmpty ? L10n.text("Mon profil", "My profile") : firstName)
                                 .font(.title3.bold())
-                            Text("\(vm.totalCount) rencontre\(vm.totalCount > 1 ? "s" : "") enregistrée\(vm.totalCount > 1 ? "s" : "")")
+                            Text(L10n.text(
+                                "\(vm.totalCount) rencontre\(vm.totalCount > 1 ? "s" : "") enregistrée\(vm.totalCount > 1 ? "s" : "")",
+                                "\(vm.totalCount) saved encounter\(vm.totalCount == 1 ? "" : "s")"
+                            ))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -157,31 +179,31 @@ struct ProfileView: View {
                     .padding(.vertical, 8)
                 }
 
-                Section("Informations") {
-                    TextField("Prénom", text: firstNameBinding)
+                Section(L10n.text("Informations", "Information")) {
+                    TextField(L10n.text("Prénom", "First name"), text: firstNameBinding)
                     
                     DatePicker(
-                        "Date de naissance",
+                        L10n.text("Date de naissance", "Date of birth"),
                         selection: birthDateBinding,
                         in: ...Date(),
                         displayedComponents: .date
                     )
-                    .environment(\.locale, Locale(identifier: "fr_FR"))
+                    .environment(\.locale, Locale(identifier: AppLanguage.current.localeIdentifier))
                     
                     HStack {
-                        Text("Âge")
+                        Text(L10n.text("Âge", "Age"))
                         Spacer()
-                        Text("\(computedAge) ans")
+                        Text(L10n.text("\(computedAge) ans", "\(computedAge) years old"))
                             .foregroundColor(.secondary)
                     }
 
-                    Picker("Genre", selection: $gender) {
+                    Picker(L10n.text("Genre", "Gender"), selection: $gender) {
                         ForEach(genders, id: \.self) { g in
-                            Text(g).tag(g)
+                            Text(profileGenderLabel(g)).tag(g)
                         }
                     }
 
-                    TextField("Ville", text: cityBinding)
+                    TextField(L10n.text("Ville", "City"), text: cityBinding)
                 }
 
                 Section("Bio") {
@@ -189,17 +211,23 @@ struct ProfileView: View {
                         .frame(minHeight: 90)
                 }
 
-                Section("Paramètres") {
-                    Picker("Thème", selection: $theme) {
-                        Text("Sombre").tag("sombre")
-                        Text("Clair").tag("light")
+                Section(L10n.text("Paramètres", "Settings")) {
+                    Picker(L10n.text("Langue", "Language"), selection: languageBinding) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.title).tag(language)
+                        }
+                    }
+
+                    Picker(L10n.text("Thème", "Theme"), selection: $theme) {
+                        Text(L10n.text("Sombre", "Dark")).tag("sombre")
+                        Text(L10n.text("Clair", "Light")).tag("light")
                     }
                     
-                    Toggle("Verrouiller l’app", isOn: biometricLockBinding)
+                    Toggle(L10n.text("Verrouiller l’app", "Lock app"), isOn: biometricLockBinding)
                         .tint(.themeAccent)
 
                     if !availableAuthenticationMethods.isEmpty {
-                        Picker("Méthode", selection: authenticationMethodBinding) {
+                        Picker(L10n.text("Méthode", "Method"), selection: authenticationMethodBinding) {
                             ForEach(availableAuthenticationMethods) { method in
                                 Label(
                                     method.title(for: supportedBiometryType),
@@ -215,44 +243,46 @@ struct ProfileView: View {
                         presentPasscodeSetup(enableLockAfterSetup: false)
                     } label: {
                         Label(
-                            hasAppPasscode ? "Modifier le code Body X" : "Créer un code Body X",
+                            hasAppPasscode
+                            ? L10n.text("Modifier le code Body X", "Change Body X code")
+                            : L10n.text("Créer un code Body X", "Create Body X code"),
                             systemImage: "number.square.fill"
                         )
                     }
                     .foregroundColor(.themeAccent)
 
                     if biometricLock {
-                        Picker("Verrouillage auto", selection: $autoLockSeconds) {
-                            Text("Immédiat").tag(0)
-                            Text("30 secondes").tag(30)
-                            Text("1 minute").tag(60)
+                        Picker(L10n.text("Verrouillage auto", "Auto-lock"), selection: $autoLockSeconds) {
+                            Text(L10n.text("Immédiat", "Immediate")).tag(0)
+                            Text(L10n.text("30 secondes", "30 seconds")).tag(30)
+                            Text(L10n.text("1 minute", "1 minute")).tag(60)
                         }
                     }
                     
                 }
 
-                Section("Confidentialité") {
-                    Toggle("Mode discret", isOn: $privacyMode)
+                Section(L10n.text("Confidentialité", "Privacy")) {
+                    Toggle(L10n.text("Mode discret", "Discreet mode"), isOn: $privacyMode)
                         .tint(.themeAccent)
 
-                    Toggle("Masquer l’aperçu iOS", isOn: $privacyShield)
+                    Toggle(L10n.text("Masquer l’aperçu iOS", "Hide iOS preview"), isOn: $privacyShield)
                         .tint(.themeAccent)
 
                     if privacyMode {
-                        Label("Noms, photos et notes privées sont masqués dans l’app.", systemImage: "eye.slash.fill")
+                        Label(L10n.text("Noms, photos et notes privées sont masqués dans l’app.", "Names, photos, and private notes are hidden in the app."), systemImage: "eye.slash.fill")
                             .font(.footnote)
                             .foregroundColor(.secondary)
                     }
                 }
 
-                Section("Politique de confidentialité") {
+                Section(L10n.text("Politique de confidentialité", "Privacy policy")) {
                     NavigationLink {
                         PrivacyPolicyView()
                     } label: {
-                        Label("Voir la politique", systemImage: "hand.raised.fill")
+                        Label(L10n.text("Voir la politique", "View policy"), systemImage: "hand.raised.fill")
                     }
 
-                    Text("Résumé : les données restent sur cet appareil. Les sauvegardes exportées sont en clair.")
+                    Text(L10n.text("Résumé : les données restent sur cet appareil. Les sauvegardes exportées sont en clair.", "Summary: data stays on this device. Exported backups are plain text."))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                 }
@@ -261,28 +291,28 @@ struct ProfileView: View {
                     Button {
                         exportBackupNote()
                     } label: {
-                        Label("Créer une note de sauvegarde", systemImage: "square.and.arrow.up")
+                        Label(L10n.text("Créer une note de sauvegarde", "Create backup note"), systemImage: "square.and.arrow.up")
                     }
                     .foregroundColor(.themeAccent)
                     .disabled(vm.encounters.isEmpty)
 
-                    Text("La note est lisible en clair et organisée par personne. Garde-la dans un endroit sécurisé.")
+                    Text(L10n.text("La note est lisible en clair et organisée par personne. Garde-la dans un endroit sécurisé.", "The note is readable plain text and organized by person. Keep it in a secure place."))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                 } header: {
-                    Text("Sauvegarde")
+                    Text(L10n.text("Sauvegarde", "Backup"))
                 }
 
                 Section {
                     Button(role: .destructive) {
                         showDeleteAll = true
                     } label: {
-                        Label("Supprimer toutes les entrées", systemImage: "trash.fill")
+                        Label(L10n.text("Supprimer toutes les entrées", "Delete all entries"), systemImage: "trash.fill")
                     }
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Profil")
+            .navigationTitle(L10n.text("Profil", "Profile"))
             .onAppear {
                 refreshAuthenticationMethods()
             }
@@ -303,24 +333,24 @@ struct ProfileView: View {
                     ActivityShareSheet(activityItems: backupShareItems)
                 }
             }
-            .confirmationDialog("Photo de profil", isPresented: $showPhotoSourceDialog, titleVisibility: .visible) {
-                Button("Choisir une photo") {
+            .confirmationDialog(L10n.text("Photo de profil", "Profile photo"), isPresented: $showPhotoSourceDialog, titleVisibility: .visible) {
+                Button(L10n.text("Choisir une photo", "Choose a photo")) {
                     requestPhotoLibraryAccessAndPresentPicker()
                 }
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button("Prendre une photo") {
+                    Button(L10n.text("Prendre une photo", "Take a photo")) {
                         requestCameraAccessAndPresentPicker()
                     }
                 }
-                Button("Personnaliser avec un emoji") {
+                Button(L10n.text("Personnaliser avec un emoji", "Customize with emoji")) {
                     showEmojiEditor = true
                 }
                 if !imageBase64.isEmpty {
-                    Button("Supprimer la photo", role: .destructive) {
+                    Button(L10n.text("Supprimer la photo", "Delete photo"), role: .destructive) {
                         imageBase64 = ""
                     }
                 }
-                Button("Annuler", role: .cancel) {}
+                Button(L10n.text("Annuler", "Cancel"), role: .cancel) {}
             }
             .sheet(isPresented: $showEmojiEditor) {
                 NavigationStack {
@@ -342,7 +372,7 @@ struct ProfileView: View {
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundColor(.secondary)
 
-                                TextField("Emoji personnalisé", text: Binding(
+                                TextField(L10n.text("Emoji personnalisé", "Custom emoji"), text: Binding(
                                     get: { customEmoji },
                                     set: { customEmoji = InputSanitizer.cleanEmoji($0) }
                                 ))
@@ -366,7 +396,7 @@ struct ProfileView: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 10) {
-                                Text("Couleur de fond")
+                                Text(L10n.text("Couleur de fond", "Background color"))
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundColor(.secondary)
                                 
@@ -395,7 +425,7 @@ struct ProfileView: View {
                         .padding(.horizontal)
                         .padding(.bottom)
                     }
-                    .navigationTitle("Avatar Emoji")
+                    .navigationTitle(L10n.text("Avatar Emoji", "Emoji Avatar"))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarTrailing) {
@@ -405,34 +435,36 @@ struct ProfileView: View {
                     }
                 }
             }
-            .alert("Tout supprimer ?", isPresented: $showDeleteAll) {
-                Button("Supprimer", role: .destructive) {
+            .alert(L10n.text("Tout supprimer ?", "Delete everything?"), isPresented: $showDeleteAll) {
+                Button(L10n.text("Supprimer", "Delete"), role: .destructive) {
                     showDeleteAll = false
                     Task { @MainActor in
                         await Task.yield()
                         vm.clearAll()
                     }
                 }
-                Button("Annuler", role: .cancel) {}
+                Button(L10n.text("Annuler", "Cancel"), role: .cancel) {}
             } message: {
-                Text("Cette action est irréversible.")
+                Text(L10n.text("Cette action est irréversible.", "This action cannot be undone."))
             }
-            .alert("Accès requis", isPresented: $showPhotoAccessAlert) {
+            .alert(L10n.text("Accès requis", "Access required"), isPresented: $showPhotoAccessAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(photoAccessAlertMessage)
             }
-            .alert("Sauvegarde impossible", isPresented: $showBackupError) {
+            .alert(L10n.text("Sauvegarde impossible", "Backup unavailable"), isPresented: $showBackupError) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(backupErrorMessage)
             }
         }
     }
-
     private func exportBackupNote() {
         guard !vm.encounters.isEmpty else {
-            backupErrorMessage = "Aucune rencontre à sauvegarder pour le moment."
+            backupErrorMessage = L10n.text(
+                "Aucune rencontre à sauvegarder pour le moment.",
+                "There are no encounters to back up yet."
+            )
             showBackupError = true
             return
         }
@@ -447,7 +479,10 @@ struct ProfileView: View {
             backupShareItems = [noteURL]
             showBackupShareSheet = true
         } catch {
-            backupErrorMessage = "Impossible de créer le fichier de sauvegarde pour le moment."
+            backupErrorMessage = L10n.text(
+                "Impossible de créer le fichier de sauvegarde pour le moment.",
+                "Unable to create the backup file right now."
+            )
             showBackupError = true
         }
     }
@@ -457,13 +492,13 @@ struct ProfileView: View {
         let groups = backupPersonGroups()
 
         sections.append("""
-        # Sauvegarde Body X
+        \(L10n.text("# Sauvegarde Body X", "# Body X Backup"))
 
-        Créée le \(backupDateText(Date(), includesTime: true)).
+        \(L10n.text("Créée le", "Created on")) \(backupDateText(Date(), includesTime: true)).
 
-        \(groups.count) personne\(groups.count > 1 ? "s" : "") · \(vm.encounters.count) rencontre\(vm.encounters.count > 1 ? "s" : "")
+        \(L10n.personCount(groups.count)) · \(L10n.encounterCount(vm.encounters.count))
 
-        Note lisible, organisée par personne.
+        \(L10n.text("Note lisible, organisée par personne.", "Readable note, organized by person."))
         """)
 
         sections.append(makeProfileBackupSection())
@@ -477,23 +512,23 @@ struct ProfileView: View {
     }
 
     private func makeProfileBackupSection() -> String {
-        var lines: [String] = ["## Mon profil"]
+        var lines: [String] = [L10n.text("## Mon profil", "## My profile")]
 
-        appendReadableField("Prénom", firstName, to: &lines)
-        appendReadableField("Âge", "\(computedAge) ans", to: &lines)
-        appendReadableField("Genre", gender == "Non précisé" ? "" : gender, to: &lines)
-        appendReadableField("Ville", city, to: &lines)
+        appendReadableField(L10n.text("Prénom", "First name"), firstName, to: &lines)
+        appendReadableField(L10n.text("Âge", "Age"), L10n.age(computedAge), to: &lines)
+        appendReadableField(L10n.text("Genre", "Gender"), gender == "Non précisé" ? "" : profileGenderLabel(gender), to: &lines)
+        appendReadableField(L10n.text("Ville", "City"), city, to: &lines)
         appendReadableTextBlock("Bio", bio, to: &lines)
 
         return lines.joined(separator: "\n")
     }
 
     private func makePeopleSummarySection(_ groups: [BackupPersonGroup]) -> String {
-        var lines: [String] = ["## Vue d’ensemble"]
+        var lines: [String] = [L10n.text("## Vue d’ensemble", "## Overview")]
 
         for (index, group) in groups.enumerated() {
             var summary = "\(index + 1). \(group.displayName)"
-            summary += " - \(group.encounters.count) rencontre\(group.encounters.count > 1 ? "s" : "")"
+            summary += " - \(L10n.encounterCount(group.encounters.count))"
             summary += " - \(backupPeriodText(for: group.encounters))"
             let city = primaryCityText(for: group.encounters)
             if city != "—" {
@@ -508,12 +543,12 @@ struct ProfileView: View {
     private func makePersonBackupSection(_ group: BackupPersonGroup, index: Int) -> String {
         var lines: [String] = []
         lines.append("## \(index). \(group.displayName)")
-        lines.append("Rencontres : \(group.encounters.count)")
-        lines.append("Période : \(backupPeriodText(for: group.encounters))")
+        lines.append("\(L10n.text("Rencontres", "Encounters")) : \(group.encounters.count)")
+        lines.append("\(L10n.text("Période", "Period")) : \(backupPeriodText(for: group.encounters))")
 
         appendReadableField("Types", backupTypeSummary(for: group.encounters), to: &lines)
-        appendReadableField("Contextes", backupContextSummary(for: group.encounters), to: &lines)
-        appendReadableField("Villes", backupFrequencySummary(group.encounters.map(\.city)), to: &lines)
+        appendReadableField(L10n.text("Contextes", "Contexts"), backupContextSummary(for: group.encounters), to: &lines)
+        appendReadableField(L10n.text("Villes", "Cities"), backupFrequencySummary(group.encounters.map(\.city)), to: &lines)
         lines.append("")
 
         for (encounterIndex, encounter) in group.encounters.enumerated() {
@@ -525,21 +560,21 @@ struct ProfileView: View {
 
     private func makeEncounterBackupSection(_ encounter: Encounter, index: Int) -> String {
         var lines: [String] = []
-        lines.append("### Rencontre \(index)")
-        lines.append("Date : \(backupDateText(encounter.date))")
-        appendReadableField("Lieu", backupLocationText(for: encounter), to: &lines)
+        lines.append(L10n.text("### Rencontre \(index)", "### Encounter \(index)"))
+        lines.append("\(L10n.text("Date", "Date")) : \(backupDateText(encounter.date))")
+        appendReadableField(L10n.text("Lieu", "Location"), backupLocationText(for: encounter), to: &lines)
 
         let headline = backupEncounterHeadline(for: encounter)
         if !headline.isEmpty {
-            lines.append("Résumé : \(headline)")
+            lines.append("\(L10n.text("Résumé", "Summary")) : \(headline)")
         }
 
-        appendReadableField("Prénom ou surnom", encounter.firstName, to: &lines)
-        appendReadableField("Âge", encounter.age.map { "\($0) ans" } ?? "", to: &lines)
+        appendReadableField(L10n.text("Prénom ou surnom", "First name or nickname"), encounter.firstName, to: &lines)
+        appendReadableField(L10n.text("Âge", "Age"), encounter.age.map { L10n.age($0) } ?? "", to: &lines)
         appendReadableField("Tags", backupListText(encounter.tags), to: &lines)
         appendReadableField("Green flags", backupListText(encounter.greenFlags), to: &lines)
         appendReadableField("Red flags", backupListText(encounter.redFlags), to: &lines)
-        appendReadableTextBlock("Mémo", encounter.note, to: &lines)
+        appendReadableTextBlock(L10n.text("Mémo", "Memo"), encounter.note, to: &lines)
 
         return lines.joined(separator: "\n")
     }
@@ -548,19 +583,19 @@ struct ProfileView: View {
         var parts: [String] = []
 
         if let type = encounter.type {
-            parts.append(type.rawValue)
+            parts.append(type.localizedName)
         }
         if let context = encounter.context {
-            parts.append(context.rawValue)
+            parts.append(context.localizedName)
         }
         if encounter.rating > 0 {
             parts.append("\(RatingScale.formatted(encounter.rating))/5")
         }
         if let outcome = encounter.outcome {
-            parts.append(outcome.rawValue)
+            parts.append(outcome.localizedName)
         }
         if encounter.wouldMeetAgain {
-            parts.append("À revoir")
+            parts.append(L10n.text("À revoir", "Would meet again"))
         }
 
         return parts.joined(separator: " · ")
@@ -613,7 +648,7 @@ struct ProfileView: View {
         encounters
             .map { $0.firstName.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-            .max { $0.count < $1.count } ?? "Personne inconnue"
+            .max { $0.count < $1.count } ?? L10n.text("Personne inconnue", "Unknown person")
     }
 
     private func primaryCityText(for encounters: [Encounter]) -> String {
@@ -638,7 +673,7 @@ struct ProfileView: View {
     private func backupTypeSummary(for encounters: [Encounter]) -> String {
         let parts = EncounterType.allCases.compactMap { type -> String? in
             let count = encounters.filter { ($0.type ?? .body) == type }.count
-            return count > 0 ? "\(type.rawValue) (\(count))" : nil
+            return count > 0 ? "\(type.localizedName) (\(count))" : nil
         }
         return parts.isEmpty ? "—" : parts.joined(separator: ", ")
     }
@@ -646,7 +681,7 @@ struct ProfileView: View {
     private func backupContextSummary(for encounters: [Encounter]) -> String {
         let parts = EncounterContext.allCases.compactMap { context -> String? in
             let count = encounters.filter { $0.context == context }.count
-            return count > 0 ? "\(context.rawValue) (\(count))" : nil
+            return count > 0 ? "\(context.localizedName) (\(count))" : nil
         }
         return parts.isEmpty ? "—" : parts.joined(separator: ", ")
     }
@@ -682,10 +717,7 @@ struct ProfileView: View {
     }
 
     private func backupDateText(_ date: Date, includesTime: Bool = false) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "fr_FR")
-        formatter.dateFormat = includesTime ? "d MMM yyyy HH:mm" : "d MMM yyyy"
-        return formatter.string(from: date)
+        L10n.date(date, includesTime: includesTime)
     }
 
     private func backupFileTimestamp() -> String {
@@ -696,22 +728,25 @@ struct ProfileView: View {
     }
 
     private func yesNo(_ value: Bool) -> String {
-        value ? "Oui" : "Non"
+        L10n.yesNo(value)
     }
 
     private var passcodeSetupSheet: some View {
         NavigationStack {
             Form {
                 Section {
-                    SecureField("Code Body X", text: newPasscodeBinding)
+                    SecureField(L10n.text("Code Body X", "Body X code"), text: newPasscodeBinding)
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
 
-                    SecureField("Confirmer le code", text: confirmPasscodeBinding)
+                    SecureField(L10n.text("Confirmer le code", "Confirm code"), text: confirmPasscodeBinding)
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
                 } footer: {
-                    Text("Choisis un code de \(AppPasscodeStore.minimumLength) à \(AppPasscodeStore.maximumLength) chiffres. Il servira à déverrouiller l’app sans Touch ID ni Face ID.")
+                    Text(L10n.text(
+                        "Choisis un code de \(AppPasscodeStore.minimumLength) à \(AppPasscodeStore.maximumLength) chiffres. Il servira à déverrouiller l’app sans Touch ID ni Face ID.",
+                        "Choose a \(AppPasscodeStore.minimumLength) to \(AppPasscodeStore.maximumLength) digit code. It will unlock the app without Touch ID or Face ID."
+                    ))
                 }
 
                 if !passcodeSetupError.isEmpty {
@@ -721,11 +756,11 @@ struct ProfileView: View {
                     }
                 }
             }
-            .navigationTitle(hasAppPasscode ? "Modifier le code" : "Créer un code")
+            .navigationTitle(hasAppPasscode ? L10n.text("Modifier le code", "Change code") : L10n.text("Créer un code", "Create code"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annuler") {
+                    Button(L10n.text("Annuler", "Cancel")) {
                         cancelPasscodeSetup()
                     }
                 }
@@ -751,9 +786,15 @@ struct ProfileView: View {
                 }
             }
         case .denied, .restricted:
-            showPhotoAccessAlert(message: "Autorise l’accès aux photos dans Réglages > Body X > Photos.")
+            showPhotoAccessAlert(message: L10n.text(
+                "Autorise l’accès aux photos dans Réglages > Body X > Photos.",
+                "Allow photo access in Settings > Body X > Photos."
+            ))
         @unknown default:
-            showPhotoAccessAlert(message: "Impossible d’accéder à la photothèque pour le moment.")
+            showPhotoAccessAlert(message: L10n.text(
+                "Impossible d’accéder à la photothèque pour le moment.",
+                "Unable to access the photo library right now."
+            ))
         }
     }
 
@@ -777,20 +818,26 @@ struct ProfileView: View {
     private func requestBiometricLockActivation() {
         guard !availableAuthenticationMethods.isEmpty else {
             biometricLock = false
-            showPhotoAccessAlert(message: "Configure Face ID ou Touch ID dans Réglages iOS avant d’activer ce mode.")
+            showPhotoAccessAlert(message: L10n.text(
+                "Configure Face ID ou Touch ID dans Réglages iOS avant d’activer ce mode.",
+                "Set up Face ID or Touch ID in iOS Settings before enabling this mode."
+            ))
             return
         }
 
         let context = LAContext()
-        context.localizedCancelTitle = "Annuler"
-        context.localizedFallbackTitle = "Utiliser le code Body X"
+        context.localizedCancelTitle = L10n.text("Annuler", "Cancel")
+        context.localizedFallbackTitle = L10n.text("Utiliser le code Body X", "Use Body X code")
 
         var error: NSError?
 
         _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
         guard context.biometryType != .faceID || hasFaceIDUsageDescription else {
             biometricLock = false
-            showPhotoAccessAlert(message: "Ajoute Privacy - Face ID Usage Description dans le target Body X pour autoriser Face ID.")
+            showPhotoAccessAlert(message: L10n.text(
+                "Ajoute Privacy - Face ID Usage Description dans le target Body X pour autoriser Face ID.",
+                "Add Privacy - Face ID Usage Description to the Body X target to allow Face ID."
+            ))
             return
         }
 
@@ -800,7 +847,7 @@ struct ProfileView: View {
             return
         }
 
-        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: "Activer le verrouillage de Body X") { success, error in
+        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: L10n.text("Activer le verrouillage de Body X", "Enable Body X lock")) { success, error in
             Task { @MainActor in
                 biometricLock = success
                 if !success {
@@ -820,12 +867,18 @@ struct ProfileView: View {
 
     private func saveAppPasscode() {
         guard newPasscode.count >= AppPasscodeStore.minimumLength else {
-            passcodeSetupError = "Le code doit contenir au moins \(AppPasscodeStore.minimumLength) chiffres."
+            passcodeSetupError = L10n.text(
+                "Le code doit contenir au moins \(AppPasscodeStore.minimumLength) chiffres.",
+                "The code must contain at least \(AppPasscodeStore.minimumLength) digits."
+            )
             return
         }
 
         guard newPasscode == confirmPasscode else {
-            passcodeSetupError = "Les deux codes ne correspondent pas."
+            passcodeSetupError = L10n.text(
+                "Les deux codes ne correspondent pas.",
+                "The two codes do not match."
+            )
             return
         }
 
@@ -845,7 +898,10 @@ struct ProfileView: View {
                 }
             }
         } catch {
-            passcodeSetupError = "Impossible d’enregistrer le code pour le moment."
+            passcodeSetupError = L10n.text(
+                "Impossible d’enregistrer le code pour le moment.",
+                "Unable to save the code right now."
+            )
         }
     }
 
@@ -864,13 +920,19 @@ struct ProfileView: View {
         if status == .authorized || status == .limited {
             presentPhotoPicker(sourceType: .photoLibrary)
         } else {
-            showPhotoAccessAlert(message: "Autorise l’accès aux photos dans Réglages > Body X > Photos.")
+            showPhotoAccessAlert(message: L10n.text(
+                "Autorise l’accès aux photos dans Réglages > Body X > Photos.",
+                "Allow photo access in Settings > Body X > Photos."
+            ))
         }
     }
 
     private func requestCameraAccessAndPresentPicker() {
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-            showPhotoAccessAlert(message: "La caméra n’est pas disponible sur cet appareil.")
+            showPhotoAccessAlert(message: L10n.text(
+                "La caméra n’est pas disponible sur cet appareil.",
+                "The camera is not available on this device."
+            ))
             return
         }
 
@@ -883,14 +945,23 @@ struct ProfileView: View {
                     if granted {
                         presentPhotoPicker(sourceType: .camera)
                     } else {
-                        showPhotoAccessAlert(message: "Autorise l’accès à la caméra dans Réglages > Body X > Appareil photo.")
+                        showPhotoAccessAlert(message: L10n.text(
+                            "Autorise l’accès à la caméra dans Réglages > Body X > Appareil photo.",
+                            "Allow camera access in Settings > Body X > Camera."
+                        ))
                     }
                 }
             }
         case .denied, .restricted:
-            showPhotoAccessAlert(message: "Autorise l’accès à la caméra dans Réglages > Body X > Appareil photo.")
+            showPhotoAccessAlert(message: L10n.text(
+                "Autorise l’accès à la caméra dans Réglages > Body X > Appareil photo.",
+                "Allow camera access in Settings > Body X > Camera."
+            ))
         @unknown default:
-            showPhotoAccessAlert(message: "Impossible d’accéder à la caméra pour le moment.")
+            showPhotoAccessAlert(message: L10n.text(
+                "Impossible d’accéder à la caméra pour le moment.",
+                "Unable to access the camera right now."
+            ))
         }
     }
 
@@ -941,17 +1012,35 @@ struct ProfileView: View {
     private func authenticationUnavailableMessage(from error: NSError?) -> String {
         switch error?.code {
         case LAError.biometryNotEnrolled.rawValue:
-            return "Configure Face ID, Touch ID ou un code dans Réglages avant d’activer ce verrouillage."
+            return L10n.text(
+                "Configure Face ID, Touch ID ou un code dans Réglages avant d’activer ce verrouillage.",
+                "Set up Face ID, Touch ID, or a passcode in Settings before enabling this lock."
+            )
         case LAError.biometryNotAvailable.rawValue:
-            return "Face ID / Touch ID n’est pas disponible. Le code de l’appareil sera utilisé s’il est configuré."
+            return L10n.text(
+                "Face ID / Touch ID n’est pas disponible. Le code de l’appareil sera utilisé s’il est configuré.",
+                "Face ID / Touch ID is not available. The device passcode will be used if configured."
+            )
         case LAError.biometryLockout.rawValue:
-            return "Face ID / Touch ID est temporairement bloqué. Utilise le code de l’appareil."
+            return L10n.text(
+                "Face ID / Touch ID est temporairement bloqué. Utilise le code de l’appareil.",
+                "Face ID / Touch ID is temporarily locked. Use the device passcode."
+            )
         case LAError.passcodeNotSet.rawValue:
-            return "Aucun code n’est configuré sur cet appareil."
+            return L10n.text(
+                "Aucun code n’est configuré sur cet appareil.",
+                "No passcode is configured on this device."
+            )
         case LAError.userCancel.rawValue, LAError.systemCancel.rawValue, LAError.appCancel.rawValue:
-            return "Authentification annulée. Le verrouillage n’a pas été activé."
+            return L10n.text(
+                "Authentification annulée. Le verrouillage n’a pas été activé.",
+                "Authentication canceled. The lock was not enabled."
+            )
         default:
-            return "Impossible d’activer Face ID, Touch ID ou le code pour le moment."
+            return L10n.text(
+                "Impossible d’activer Face ID, Touch ID ou le code pour le moment.",
+                "Unable to enable Face ID, Touch ID, or the code right now."
+            )
         }
     }
 }
@@ -966,99 +1055,216 @@ private struct PrivacyPolicyView: View {
     var body: some View {
         List {
             Section {
-                Text("Politique de confidentialité de BodyX")
+                Text(L10n.text("Politique de confidentialité de BodyX", "BodyX Privacy Policy"))
                     .font(.headline)
-                PrivacyPolicyText("Dernière mise à jour : 9 juin 2026")
+                PrivacyPolicyText(L10n.text("Dernière mise à jour : 9 juin 2026", "Last updated: June 9, 2026"))
                     .foregroundColor(.secondary)
             }
 
             Section("Introduction") {
-                PrivacyPolicyText("BodyX respecte votre vie privée et s’engage à protéger vos données personnelles.")
-                PrivacyPolicyText("Cette politique de confidentialité explique quelles informations sont traitées lorsque vous utilisez l’application BodyX et comment celles-ci sont protégées.")
-                PrivacyPolicyText("En utilisant BodyX, vous acceptez les pratiques décrites dans cette politique.")
+                PrivacyPolicyText(L10n.text(
+                    "BodyX respecte votre vie privée et s’engage à protéger vos données personnelles.",
+                    "BodyX respects your privacy and is committed to protecting your personal data."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Cette politique de confidentialité explique quelles informations sont traitées lorsque vous utilisez l’application BodyX et comment celles-ci sont protégées.",
+                    "This privacy policy explains what information is processed when you use the BodyX app and how it is protected."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "En utilisant BodyX, vous acceptez les pratiques décrites dans cette politique.",
+                    "By using BodyX, you accept the practices described in this policy."
+                ))
             }
 
-            Section("1. À propos de BodyX") {
-                PrivacyPolicyText("BodyX est une application privée permettant aux utilisateurs de conserver un historique personnel de leurs relations et interactions intimes.")
-                PrivacyPolicyText("La confidentialité constitue un principe fondamental de la conception de l’application.")
+            Section(L10n.text("1. À propos de BodyX", "1. About BodyX")) {
+                PrivacyPolicyText(L10n.text(
+                    "BodyX est une application privée permettant aux utilisateurs de conserver un historique personnel de leurs relations et interactions intimes.",
+                    "BodyX is a private app that lets users keep a personal history of their relationships and intimate interactions."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "La confidentialité constitue un principe fondamental de la conception de l’application.",
+                    "Privacy is a core principle in the design of the app."
+                ))
             }
 
-            Section("2. Données enregistrées") {
-                PrivacyPolicyText("Les informations que vous saisissez dans BodyX, notamment les noms, surnoms, notes, dates, photos et autres informations personnelles que vous choisissez d’enregistrer, sont stockées exclusivement sur votre appareil.")
-                PrivacyPolicyText("BodyX ne transmet pas ces informations à nos serveurs.")
-                PrivacyPolicyText("Nous n’avons aucun accès à vos données personnelles ou à votre contenu.")
-                PrivacyPolicyText("Nous ne pouvons pas consulter, récupérer, analyser ou partager les informations que vous enregistrez dans l’application.")
+            Section(L10n.text("2. Données enregistrées", "2. Data saved in the app")) {
+                PrivacyPolicyText(L10n.text(
+                    "Les informations que vous saisissez dans BodyX, notamment les noms, surnoms, notes, dates, photos et autres informations personnelles que vous choisissez d’enregistrer, sont stockées exclusivement sur votre appareil.",
+                    "The information you enter in BodyX, including names, nicknames, notes, dates, photos, and other personal information you choose to save, is stored exclusively on your device."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "BodyX ne transmet pas ces informations à nos serveurs.",
+                    "BodyX does not send this information to our servers."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Nous n’avons aucun accès à vos données personnelles ou à votre contenu.",
+                    "We do not have access to your personal data or your content."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Nous ne pouvons pas consulter, récupérer, analyser ou partager les informations que vous enregistrez dans l’application.",
+                    "We cannot view, retrieve, analyze, or share the information you save in the app."
+                ))
             }
 
-            Section("3. Absence de compte utilisateur") {
-                PrivacyPolicyText("L’utilisation actuelle de BodyX ne nécessite aucune création de compte.")
-                PrivacyPolicyText("Aucune inscription, adresse e-mail ou identification personnelle n’est demandée pour utiliser les fonctionnalités principales de l’application.")
+            Section(L10n.text("3. Absence de compte utilisateur", "3. No user account")) {
+                PrivacyPolicyText(L10n.text(
+                    "L’utilisation actuelle de BodyX ne nécessite aucune création de compte.",
+                    "The current use of BodyX does not require creating an account."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Aucune inscription, adresse e-mail ou identification personnelle n’est demandée pour utiliser les fonctionnalités principales de l’application.",
+                    "No registration, email address, or personal identification is requested to use the main features of the app."
+                ))
             }
 
-            Section("4. Stockage local des données") {
-                PrivacyPolicyText("Toutes les données enregistrées dans BodyX sont conservées localement sur votre appareil.")
-                PrivacyPolicyText("Aucune synchronisation avec un serveur distant n’est effectuée.")
-                PrivacyPolicyText("Aucune base de données en ligne contenant vos informations personnelles n’est exploitée par BodyX.")
+            Section(L10n.text("4. Stockage local des données", "4. Local data storage")) {
+                PrivacyPolicyText(L10n.text(
+                    "Toutes les données enregistrées dans BodyX sont conservées localement sur votre appareil.",
+                    "All data saved in BodyX is kept locally on your device."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Aucune synchronisation avec un serveur distant n’est effectuée.",
+                    "No synchronization with a remote server is performed."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Aucune base de données en ligne contenant vos informations personnelles n’est exploitée par BodyX.",
+                    "BodyX does not operate any online database containing your personal information."
+                ))
             }
 
-            Section("5. Exportation de données") {
-                PrivacyPolicyText("BodyX permet aux utilisateurs d’exporter certaines informations sous forme de document de sauvegarde.")
-                PrivacyPolicyText("Une fois exporté hors de l’application, ce document devient sous la responsabilité exclusive de l’utilisateur.")
-                PrivacyPolicyText("BodyX ne contrôle pas l’utilisation, le stockage ou le partage des fichiers exportés.")
-                PrivacyPolicyText("Nous recommandons aux utilisateurs de protéger ces fichiers et de les partager uniquement avec des personnes de confiance.")
+            Section(L10n.text("5. Exportation de données", "5. Data export")) {
+                PrivacyPolicyText(L10n.text(
+                    "BodyX permet aux utilisateurs d’exporter certaines informations sous forme de document de sauvegarde.",
+                    "BodyX allows users to export certain information as a backup document."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Une fois exporté hors de l’application, ce document devient sous la responsabilité exclusive de l’utilisateur.",
+                    "Once exported outside the app, this document becomes the sole responsibility of the user."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "BodyX ne contrôle pas l’utilisation, le stockage ou le partage des fichiers exportés.",
+                    "BodyX does not control the use, storage, or sharing of exported files."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Nous recommandons aux utilisateurs de protéger ces fichiers et de les partager uniquement avec des personnes de confiance.",
+                    "We recommend that users protect these files and share them only with trusted people."
+                ))
             }
 
-            Section("6. Accès aux fonctionnalités de l’appareil") {
-                PrivacyPolicyText("Selon les fonctionnalités utilisées, BodyX peut demander les autorisations suivantes :")
-                PrivacyPolicyText("Appareil photo : permet d’ajouter des photos à vos entrées.")
-                PrivacyPolicyText("Bibliothèque de photos : permet de sélectionner des photos déjà présentes sur votre appareil.")
-                PrivacyPolicyText("Face ID / Touch ID : permet de sécuriser l’accès à l’application et de protéger vos données contre les accès non autorisés.")
-                PrivacyPolicyText("Ces autorisations sont facultatives et peuvent être désactivées à tout moment depuis les réglages de votre appareil.")
+            Section(L10n.text("6. Accès aux fonctionnalités de l’appareil", "6. Access to device features")) {
+                PrivacyPolicyText(L10n.text(
+                    "Selon les fonctionnalités utilisées, BodyX peut demander les autorisations suivantes :",
+                    "Depending on the features used, BodyX may request the following permissions:"
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Appareil photo : permet d’ajouter des photos à vos entrées.",
+                    "Camera: lets you add photos to your entries."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Bibliothèque de photos : permet de sélectionner des photos déjà présentes sur votre appareil.",
+                    "Photo library: lets you select photos already stored on your device."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Face ID / Touch ID : permet de sécuriser l’accès à l’application et de protéger vos données contre les accès non autorisés.",
+                    "Face ID / Touch ID: helps secure access to the app and protect your data from unauthorized access."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Ces autorisations sont facultatives et peuvent être désactivées à tout moment depuis les réglages de votre appareil.",
+                    "These permissions are optional and can be disabled at any time from your device settings."
+                ))
             }
 
-            Section("7. Sécurité") {
-                PrivacyPolicyText("La protection de votre vie privée constitue l’une des priorités de BodyX.")
-                PrivacyPolicyText("Toutes les données enregistrées dans l’application sont stockées localement sur votre appareil et ne sont pas transmises à nos serveurs.")
-                PrivacyPolicyText("BodyX permet de protéger l’accès à vos informations grâce à un code PIN personnel défini par l’utilisateur ainsi qu’aux mécanismes biométriques pris en charge par votre appareil, tels que Face ID ou Touch ID.")
-                PrivacyPolicyText("Même les développeurs de BodyX ne peuvent pas accéder à vos données personnelles, à vos notes, à vos photos ou aux informations que vous enregistrez dans l’application.")
-                PrivacyPolicyText("Nous n’avons aucun moyen technique de consulter, récupérer ou analyser le contenu enregistré dans BodyX.")
-                PrivacyPolicyText("Toutefois, la sécurité de vos données dépend également de la protection de votre appareil. Nous vous recommandons d’utiliser un code de verrouillage sécurisé et de maintenir votre système d’exploitation à jour.")
+            Section(L10n.text("7. Sécurité", "7. Security")) {
+                PrivacyPolicyText(L10n.text(
+                    "La protection de votre vie privée constitue l’une des priorités de BodyX.",
+                    "Protecting your privacy is one of BodyX’s priorities."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Toutes les données enregistrées dans l’application sont stockées localement sur votre appareil et ne sont pas transmises à nos serveurs.",
+                    "All data saved in the app is stored locally on your device and is not sent to our servers."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "BodyX permet de protéger l’accès à vos informations grâce à un code PIN personnel défini par l’utilisateur ainsi qu’aux mécanismes biométriques pris en charge par votre appareil, tels que Face ID ou Touch ID.",
+                    "BodyX can protect access to your information with a personal PIN code defined by the user and with biometric mechanisms supported by your device, such as Face ID or Touch ID."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Même les développeurs de BodyX ne peuvent pas accéder à vos données personnelles, à vos notes, à vos photos ou aux informations que vous enregistrez dans l’application.",
+                    "Even the developers of BodyX cannot access your personal data, notes, photos, or information saved in the app."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Nous n’avons aucun moyen technique de consulter, récupérer ou analyser le contenu enregistré dans BodyX.",
+                    "We have no technical way to view, retrieve, or analyze the content saved in BodyX."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Toutefois, la sécurité de vos données dépend également de la protection de votre appareil. Nous vous recommandons d’utiliser un code de verrouillage sécurisé et de maintenir votre système d’exploitation à jour.",
+                    "However, the security of your data also depends on the protection of your device. We recommend using a secure device passcode and keeping your operating system up to date."
+                ))
             }
 
-            Section("8. Publicité") {
-                PrivacyPolicyText("À ce jour, BodyX n’affiche aucune publicité.")
-                PrivacyPolicyText("Si des services publicitaires sont intégrés dans une future version de l’application, cette politique sera mise à jour afin d’expliquer clairement quelles données pourraient être utilisées et dans quel objectif.")
+            Section(L10n.text("8. Publicité", "8. Advertising")) {
+                PrivacyPolicyText(L10n.text(
+                    "À ce jour, BodyX n’affiche aucune publicité.",
+                    "At this time, BodyX does not display any advertising."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Si des services publicitaires sont intégrés dans une future version de l’application, cette politique sera mise à jour afin d’expliquer clairement quelles données pourraient être utilisées et dans quel objectif.",
+                    "If advertising services are added in a future version of the app, this policy will be updated to clearly explain what data could be used and for what purpose."
+                ))
             }
 
-            Section("9. Protection des mineurs") {
-                PrivacyPolicyText("BodyX est destiné aux personnes âgées d’au moins 16 ans.")
-                PrivacyPolicyText("Nous ne collectons pas sciemment de données concernant des enfants de moins de 16 ans.")
-                PrivacyPolicyText("Si vous pensez qu’un mineur de moins de 16 ans utilise l’application contrairement à cette politique, veuillez nous contacter.")
+            Section(L10n.text("9. Protection des mineurs", "9. Protection of minors")) {
+                PrivacyPolicyText(L10n.text(
+                    "BodyX est destiné aux personnes âgées d’au moins 16 ans.",
+                    "BodyX is intended for people who are at least 16 years old."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Nous ne collectons pas sciemment de données concernant des enfants de moins de 16 ans.",
+                    "We do not knowingly collect data concerning children under 16."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "Si vous pensez qu’un mineur de moins de 16 ans utilise l’application contrairement à cette politique, veuillez nous contacter.",
+                    "If you believe that a minor under 16 is using the app contrary to this policy, please contact us."
+                ))
             }
 
-            Section("10. Vos droits") {
-                PrivacyPolicyText("Conformément aux lois applicables en matière de protection des données, vous disposez notamment des droits suivants :")
-                PrivacyPolicyText("Droit d’accès à vos données ;")
-                PrivacyPolicyText("Droit de rectification ;")
-                PrivacyPolicyText("Droit à l’effacement ;")
-                PrivacyPolicyText("Droit à la limitation du traitement ;")
-                PrivacyPolicyText("Droit d’opposition ;")
-                PrivacyPolicyText("Droit à la portabilité.")
-                PrivacyPolicyText("Étant donné que les données sont stockées uniquement sur votre appareil et ne sont pas accessibles par BodyX, la plupart de ces droits peuvent être exercés directement par vous depuis l’application ou en supprimant vos données localement.")
+            Section(L10n.text("10. Vos droits", "10. Your rights")) {
+                PrivacyPolicyText(L10n.text(
+                    "Conformément aux lois applicables en matière de protection des données, vous disposez notamment des droits suivants :",
+                    "Under applicable data protection laws, you may have the following rights:"
+                ))
+                PrivacyPolicyText(L10n.text("Droit d’accès à vos données ;", "Right of access to your data;"))
+                PrivacyPolicyText(L10n.text("Droit de rectification ;", "Right to rectification;"))
+                PrivacyPolicyText(L10n.text("Droit à l’effacement ;", "Right to erasure;"))
+                PrivacyPolicyText(L10n.text("Droit à la limitation du traitement ;", "Right to restriction of processing;"))
+                PrivacyPolicyText(L10n.text("Droit d’opposition ;", "Right to object;"))
+                PrivacyPolicyText(L10n.text("Droit à la portabilité.", "Right to portability."))
+                PrivacyPolicyText(L10n.text(
+                    "Étant donné que les données sont stockées uniquement sur votre appareil et ne sont pas accessibles par BodyX, la plupart de ces droits peuvent être exercés directement par vous depuis l’application ou en supprimant vos données localement.",
+                    "Because the data is stored only on your device and is not accessible by BodyX, most of these rights can be exercised directly by you in the app or by deleting your local data."
+                ))
             }
 
-            Section("11. Modifications de cette politique") {
-                PrivacyPolicyText("Nous pouvons modifier cette politique de confidentialité afin de refléter l’évolution de l’application ou des exigences légales.")
-                PrivacyPolicyText("La date de dernière mise à jour figurera toujours en haut de cette page.")
+            Section(L10n.text("11. Modifications de cette politique", "11. Changes to this policy")) {
+                PrivacyPolicyText(L10n.text(
+                    "Nous pouvons modifier cette politique de confidentialité afin de refléter l’évolution de l’application ou des exigences légales.",
+                    "We may update this privacy policy to reflect changes to the app or legal requirements."
+                ))
+                PrivacyPolicyText(L10n.text(
+                    "La date de dernière mise à jour figurera toujours en haut de cette page.",
+                    "The last updated date will always appear at the top of this page."
+                ))
             }
 
-            Section("12. Nous contacter") {
-                PrivacyPolicyText("Pour toute question concernant cette politique de confidentialité ou l’application BodyX, vous pouvez nous contacter :")
-                PrivacyPolicyText("Email : bodyxapp@gmail.com")
+            Section(L10n.text("12. Nous contacter", "12. Contact us")) {
+                PrivacyPolicyText(L10n.text(
+                    "Pour toute question concernant cette politique de confidentialité ou l’application BodyX, vous pouvez nous contacter :",
+                    "For any question about this privacy policy or the BodyX app, you can contact us:"
+                ))
+                PrivacyPolicyText(L10n.text("Email : bodyxapp@gmail.com", "Email: bodyxapp@gmail.com"))
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("Confidentialité")
+        .navigationTitle(L10n.text("Confidentialité", "Privacy"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

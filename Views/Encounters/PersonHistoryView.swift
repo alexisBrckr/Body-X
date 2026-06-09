@@ -25,8 +25,8 @@ struct PersonHistoryView: View {
     }
 
     private var displayName: String {
-        if privacyMode { return "Personne masquée" }
-        return summary?.displayName ?? latestEncounter?.firstName ?? "Personne"
+        if privacyMode { return L10n.text("Personne masquée", "Hidden person") }
+        return summary?.displayName ?? latestEncounter?.firstName ?? L10n.text("Personne", "Person")
     }
 
     private var averageRating: Double {
@@ -49,7 +49,7 @@ struct PersonHistoryView: View {
 
     private var topCityText: String {
         guard topValues(history.map(\.city), limit: 1).first != nil else { return "—" }
-        return privacyMode ? "Lieu masqué" : topValues(history.map(\.city), limit: 1).first?.0 ?? "—"
+        return privacyMode ? L10n.text("Lieu masqué", "Hidden location") : topValues(history.map(\.city), limit: 1).first?.0 ?? "—"
     }
 
     private var typeCounts: [(EncounterType, Int)] {
@@ -106,7 +106,7 @@ struct PersonHistoryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Fermer") { dismiss() }
+                    Button(L10n.text("Fermer", "Close")) { dismiss() }
                         .foregroundColor(.themeAccent)
                 }
             }
@@ -117,27 +117,27 @@ struct PersonHistoryView: View {
     }
 
     private var overviewSection: some View {
-        Section("Résumé") {
+        Section(L10n.text("Résumé", "Summary")) {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 PersonMetricTile(
                     icon: "number",
-                    label: "Rencontres",
+                    label: L10n.text("Rencontres", "Encounters"),
                     value: "\(history.count)"
                 )
                 PersonMetricTile(
                     icon: "calendar",
-                    label: "Période",
+                    label: L10n.text("Période", "Period"),
                     value: summary?.relationDurationText ?? "—"
                 )
                 PersonMetricTile(
                     icon: "star.fill",
-                    label: "Note moy.",
+                    label: L10n.text("Note moy.", "Avg. rating"),
                     value: averageRatingText,
                     tint: .yellow
                 )
                 PersonMetricTile(
                     icon: "mappin",
-                    label: "Ville #1",
+                    label: L10n.text("Ville #1", "Top city"),
                     value: topCityText
                 )
             }
@@ -150,7 +150,7 @@ struct PersonHistoryView: View {
     @ViewBuilder
     private var activitySection: some View {
         if !typeCounts.isEmpty || !contextCounts.isEmpty {
-            Section("Profil de rencontre") {
+            Section(L10n.text("Profil de rencontre", "Encounter profile")) {
                 if !typeCounts.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Types")
@@ -161,7 +161,7 @@ struct PersonHistoryView: View {
                             PersonDistributionRow(
                                 icon: type.icon,
                                 emoji: type.emoji,
-                                label: type.rawValue,
+                                label: type.localizedName,
                                 count: count,
                                 total: history.count,
                                 tint: .themeAccent
@@ -173,7 +173,7 @@ struct PersonHistoryView: View {
 
                 if !contextCounts.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Contextes")
+                        Text(L10n.text("Contextes", "Contexts"))
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.secondary)
 
@@ -181,7 +181,7 @@ struct PersonHistoryView: View {
                             PersonDistributionRow(
                                 icon: context.icon,
                                 emoji: nil,
-                                label: context.rawValue,
+                                label: context.localizedName,
                                 count: count,
                                 total: history.count,
                                 tint: .blue
@@ -197,13 +197,13 @@ struct PersonHistoryView: View {
     @ViewBuilder
     private var preferencesSection: some View {
         if privacyMode && (!topTags.isEmpty || !topGreenFlags.isEmpty || !topRedFlags.isEmpty) {
-            Section("Ce qui revient souvent") {
-                Label("Tags et flags masqués en mode discret", systemImage: "eye.slash.fill")
+            Section(L10n.text("Ce qui revient souvent", "Recurring details")) {
+                Label(L10n.text("Tags et flags masqués en mode discret", "Tags and flags hidden in discreet mode"), systemImage: "eye.slash.fill")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
         } else if !topTags.isEmpty || !topGreenFlags.isEmpty || !topRedFlags.isEmpty {
-            Section("Ce qui revient souvent") {
+            Section(L10n.text("Ce qui revient souvent", "Recurring details")) {
                 if !topTags.isEmpty {
                     PersonTagGroup(title: "Tags", items: topTags, tint: .themeAccent)
                 }
@@ -220,7 +220,7 @@ struct PersonHistoryView: View {
     }
 
     private var historySection: some View {
-        Section("Historique") {
+        Section(L10n.text("Historique", "History")) {
             ForEach(history) { encounter in
                 Button {
                     selectedEncounter = encounter
@@ -260,26 +260,26 @@ private struct PersonProfileHeaderView: View {
 
     private var subtitle: String {
         if privacyMode {
-            return "Fiche personne masquée"
+            return L10n.text("Fiche personne masquée", "Hidden person profile")
         }
 
         var parts: [String] = []
         if let age = encounter.age {
-            parts.append("\(age) ans")
+            parts.append(L10n.text("\(age) ans", "\(age) years old"))
         }
         if let gender = encounter.gender {
-            parts.append(gender.rawValue)
+            parts.append(gender.localizedName)
         }
         if !encounter.city.isEmpty {
             parts.append(encounter.city)
         }
-        return parts.isEmpty ? "Fiche personne" : parts.joined(separator: " · ")
+        return parts.isEmpty ? L10n.text("Fiche personne", "Person profile") : parts.joined(separator: " · ")
     }
 
     private var badgeText: String {
-        if isLongTerm { return "Relation suivie" }
-        if encounterCount > 1 { return "Personne revue" }
-        return "Rencontre unique"
+        if isLongTerm { return L10n.text("Relation suivie", "Ongoing relation") }
+        if encounterCount > 1 { return L10n.text("Personne revue", "Seen again") }
+        return L10n.text("Rencontre unique", "Single encounter")
     }
 
     private var badgeIcon: String {
@@ -450,7 +450,7 @@ private struct PersonTimelineRow: View {
     let encounter: Encounter
 
     private var cityText: String {
-        privacyMode ? "Lieu masqué" : encounter.city
+        privacyMode ? L10n.text("Lieu masqué", "Hidden location") : encounter.city
     }
 
     var body: some View {
@@ -474,7 +474,7 @@ private struct PersonTimelineRow: View {
                     Spacer()
 
                     if let type = encounter.type {
-                        Text("\(type.emoji) \(type.rawValue)")
+                        Text("\(type.emoji) \(type.localizedName)")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.secondary)
                             .lineLimit(1)
@@ -488,7 +488,7 @@ private struct PersonTimelineRow: View {
                     }
 
                     if let context = encounter.context {
-                        Label(context.rawValue, systemImage: context.icon)
+                        Label(context.localizedName, systemImage: context.icon)
                             .lineLimit(1)
                     }
                 }
@@ -500,7 +500,7 @@ private struct PersonTimelineRow: View {
                 }
 
                 if privacyMode && !encounter.note.isEmpty {
-                    Label("Note privée masquée", systemImage: "eye.slash.fill")
+                    Label(L10n.text("Note privée masquée", "Private note hidden"), systemImage: "eye.slash.fill")
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
                 } else if !encounter.note.isEmpty {

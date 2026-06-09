@@ -11,10 +11,10 @@ class EncounterViewModel: ObservableObject {
         
         var label: String {
             switch self {
-            case .none: return "Par défaut"
-            case .alphabetical: return "Ordre alphabétique"
+            case .none: return L10n.text("Par défaut", "Default")
+            case .alphabetical: return L10n.text("Ordre alphabétique", "Alphabetical")
             case .kiss: return "Kiss"
-            case .preli: return "Préli"
+            case .preli: return "Preli"
             case .body: return "Body"
             }
         }
@@ -51,11 +51,16 @@ class EncounterViewModel: ObservableObject {
         
         var relationDurationText: String {
             let months = max(1, Calendar.current.dateComponents([.month], from: firstDate, to: lastDate).month ?? 0)
-            if months < 12 { return "\(months) mois" }
+            if months < 12 { return L10n.text("\(months) mois", "\(months) month\(months > 1 ? "s" : "")") }
             let years = months / 12
             let remainingMonths = months % 12
-            if remainingMonths == 0 { return "\(years) an\(years > 1 ? "s" : "")" }
-            return "\(years) an\(years > 1 ? "s" : "") \(remainingMonths) mois"
+            if remainingMonths == 0 {
+                return L10n.text("\(years) an\(years > 1 ? "s" : "")", "\(years) year\(years > 1 ? "s" : "")")
+            }
+            return L10n.text(
+                "\(years) an\(years > 1 ? "s" : "") \(remainingMonths) mois",
+                "\(years) year\(years > 1 ? "s" : "") \(remainingMonths) month\(remainingMonths > 1 ? "s" : "")"
+            )
         }
         
         var isLongTerm: Bool {

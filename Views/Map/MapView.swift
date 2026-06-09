@@ -21,8 +21,15 @@ struct EncounterMapView: View {
     @State private var selectedTypeFilter: MapTypeFilter = .all
 
     private enum MapDisplayStyle: String, CaseIterable {
-        case standard = "Plan"
+        case standard = "standard"
         case satellite = "Satellite"
+
+        var title: String {
+            switch self {
+            case .standard: return L10n.text("Plan", "Map")
+            case .satellite: return L10n.text("Satellite", "Satellite")
+            }
+        }
     }
 
     private enum MapTypeFilter: String, CaseIterable, Identifiable {
@@ -35,18 +42,18 @@ struct EncounterMapView: View {
 
         var title: String {
             switch self {
-            case .all: return "Toutes"
-            case .body: return "Bodycount"
-            case .preli: return "Prelicount"
-            case .kiss: return "Kisscount"
+            case .all: return L10n.text("Toutes", "All")
+            case .body: return EncounterType.body.localizedName
+            case .preli: return EncounterType.preli.localizedName
+            case .kiss: return EncounterType.kiss.localizedName
             }
         }
 
         var shortTitle: String {
             switch self {
-            case .all: return "Tous"
+            case .all: return L10n.text("Tous", "All")
             case .body: return "Body"
-            case .preli: return "Préli"
+            case .preli: return "Preli"
             case .kiss: return "Kiss"
             }
         }
@@ -83,11 +90,11 @@ struct EncounterMapView: View {
     }
 
     private func displayName(for encounter: Encounter) -> String {
-        privacyMode ? "Personne masquée" : encounter.firstName
+        privacyMode ? L10n.text("Personne masquée", "Hidden person") : encounter.firstName
     }
 
     private func cityText(for encounter: Encounter) -> String {
-        privacyMode ? "Lieu masqué" : encounter.city
+        privacyMode ? L10n.text("Lieu masqué", "Hidden location") : encounter.city
     }
 
     var body: some View {
@@ -110,7 +117,7 @@ struct EncounterMapView: View {
                         .padding(.bottom, 8)
                 }
             }
-            .navigationTitle("Carte")
+            .navigationTitle(L10n.text("Carte", "Map"))
             .navigationBarTitleDisplayMode(.inline)
             .onAppear { fitRegionToAnnotations() }
             .onChange(of: vm.mappableEncounters.count) { _ in
@@ -123,7 +130,7 @@ struct EncounterMapView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Text("\(annotations.count) pins")
+                    Text(L10n.text("\(annotations.count) pins", "\(annotations.count) pins"))
                         .font(.system(size: 13, weight: .semibold))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -204,9 +211,9 @@ struct EncounterMapView: View {
     }
 
     private var mapStyleControl: some View {
-        Picker("Style de carte", selection: $mapDisplayStyle) {
+        Picker(L10n.text("Style de carte", "Map style"), selection: $mapDisplayStyle) {
             ForEach(MapDisplayStyle.allCases, id: \.self) { style in
-                Text(style.rawValue).tag(style)
+                Text(style.title).tag(style)
             }
         }
         .pickerStyle(.segmented)
